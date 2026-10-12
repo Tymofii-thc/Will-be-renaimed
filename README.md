@@ -73,7 +73,7 @@ kubectl run t --image=nginx        # → denied: no pipeline build anchored by t
 - Перевірено в реальному кластері (kind): `test/e2e-kind.sh` (допуск, pin, відмова, блокування Deployment, fail-closed при вимкненому webhook).
 
 ## Мейннет
-Усе працює однаково: `--network mainnet` (CLI), `OATH_NETWORK=mainnet` (webhook), `?net=mainnet` або випадайка (сторінка), для запису в CI вхід `rpc` action'у (або змінна репозиторію `SOLANA_RPC`). Запис коштує приблизно 0,000005 SOL комісії. Публічний RPC `api.mainnet-beta.solana.com` має ліміти, для продакшену візьми власний (Helius, QuickNode тощо) і передай через `--rpc` / `SOLANA_RPC`.
+Усе працює однаково: `--network mainnet` (CLI), `OATH_NETWORK=mainnet` (webhook), `?net=mainnet` або випадайка (сторінка), для запису в CI вхід `rpc` action'у (або змінна репозиторію `SOLANA_RPC`). Запис коштує приблизно 0,000005 SOL комісії. Сторінка-верифікатор для мейннету ходить у `solana-rpc.publicnode.com`, бо `api.mainnet-beta.solana.com` повертає 403 на всі браузерні запити (заголовок `Origin`); CLI й webhook це не зачіпає. Публічний RPC `api.mainnet-beta.solana.com` має ліміти, для продакшену візьми власний (Helius, QuickNode тощо) і передай через `--rpc` / `SOLANA_RPC`.
 
 ## Ключі: ротація, відкликання, строк дії
 - `--signer a,b` / `OATH_SIGNER=a,b` приймає кілька ключів. **Ротація:** додай новий ключ → переключи CI → через потрібний час прибери старий.
