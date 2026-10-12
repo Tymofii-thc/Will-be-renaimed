@@ -3,317 +3,255 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>oath. — on-chain provenance gate for container deploys</title>
-<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<meta name="color-scheme" content="dark light">
+<title>Oath — proof of deploy</title>
+<meta name="description" content="Oath records every CI build digest in Solana and blocks deploys of images the pipeline did not build.">
 <meta property="og:title" content="oath.">
 <meta property="og:description" content="Don't deploy what the pipeline didn't build.">
 <meta property="og:image" content="https://tymofii-thc.github.io/oath/assets/social-preview.png">
-<style>
-  :root {
-    --t: 0.9; /* text scale: 1 = 100% */
-    --bg: #0d1117; --panel: #151b23; --ink: #e6edf3; --muted: #8b949e; --line: #2a313c;
-    --ok: #3fb950; --ok-bg: #12261a; --bad: #f85149; --bad-bg: #2a1517; --accent: #7c8cff; --code: #0a0e14;
-  }
-  @media (prefers-color-scheme: light) {
-    :root {
-      --bg: #f6f8fa; --panel: #ffffff; --ink: #1f2328; --muted: #59636e; --line: #d1d9e0;
-      --ok: #1a7f37; --ok-bg: #dafbe1; --bad: #cf222e; --bad-bg: #ffebe9; --accent: #4254d9; --code: #f0f3f6;
-    }
-  }
-  * { box-sizing: border-box; }
-  body { margin: 0; background: var(--bg); color: var(--ink); font: calc(15px * var(--t))/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
-  main { max-width: 900px; margin: 0 auto; padding: 24px 16px 72px; }
-  .mono, code, pre, input, .term { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
-  .top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 22px; }
-  .brand { font-weight: 800; font-size: calc(18px * var(--t)); letter-spacing: -.01em; }
-  .brand { display: flex; align-items: baseline; }
-  .logo { height: 26px; width: auto; display: block; align-self: center; }
-  .lang button { margin-left: 6px; padding: 3px 9px; font-size: calc(12px * var(--t)); background: transparent; color: var(--muted); border: 1px solid var(--line); border-radius: 6px; cursor: pointer; }
-  .lang button.on { color: var(--ink); border-color: var(--accent); }
-  .lead { color: var(--muted); font-size: calc(17px * var(--t)); margin: 0 0 22px; max-width: 70ch; }
-  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-  h2 { font-size: calc(13px * var(--t)); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 34px 0 10px; }
-  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; }
-  .flow { display: flex; flex-wrap: wrap; gap: 8px; align-items: stretch; font-size: calc(13px * var(--t)); }
-  .node { flex: 1 1 130px; border: 1px solid var(--line); border-radius: 8px; padding: 10px; background: var(--panel); }
-  .node b { display: block; margin-bottom: 2px; }
-  .node span { color: var(--muted); font-size: calc(12px * var(--t)); }
-  .node.gate { border-color: var(--accent); }
-  .arrow { align-self: center; color: var(--muted); }
-  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-  @media (max-width: 640px) { .row { grid-template-columns: 1fr; } }
-  label { display: block; font-size: calc(12px * var(--t)); font-weight: 600; color: var(--muted); margin: 12px 0 4px; }
-  input, select { width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--code); color: var(--ink); font-size: calc(13px * var(--t)); }
-  input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
-  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
-  button.chip, button.run { padding: 7px 12px; border-radius: 6px; border: 1px solid var(--line); background: var(--code); color: var(--ink); font: calc(13px * var(--t)) ui-monospace, monospace; cursor: pointer; }
-  button.chip:hover { border-color: var(--accent); }
-  button.run { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; margin-left: auto; }
-  button:disabled { opacity: .55; cursor: wait; }
-  .term { margin-top: 14px; border-radius: 8px; padding: 14px; font-size: calc(13px * var(--t)); background: var(--code); border: 1px solid var(--line); white-space: pre-wrap; word-break: break-all; min-height: 52px; }
-  .term.ok { border-color: var(--ok); } .term.bad { border-color: var(--bad); }
-  .term .v { color: var(--ok); font-weight: 700; } .term .n { color: var(--bad); font-weight: 700; } .term .d { color: var(--muted); }
-  .term a { color: var(--accent); }
-  pre { margin: 0; padding: 12px; border-radius: 8px; background: var(--code); border: 1px solid var(--line); overflow-x: auto; font-size: calc(12.5px * var(--t)); }
-  .tabs button { padding: 6px 11px; margin: 0 6px 10px 0; border: 1px solid var(--line); background: transparent; color: var(--muted); border-radius: 6px; cursor: pointer; font-size: calc(13px * var(--t)); }
-  .tabs button.on { color: var(--ink); border-color: var(--accent); }
-  table { width: 100%; border-collapse: collapse; font-size: calc(13px * var(--t)); }
-  th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
-  th { color: var(--muted); font-weight: 600; }
-  td.m { font-family: ui-monospace, monospace; word-break: break-all; font-size: calc(12px * var(--t)); }
-  tr.match td { background: var(--ok-bg); }
-  .tw { overflow-x: auto; }
-  .yes { color: var(--ok); } .no { color: var(--bad); }
-  footer { color: var(--muted); font-size: calc(13px * var(--t)); margin-top: 34px; }
-  footer a { color: var(--accent); }
-  .hint { color: var(--muted); font-size: calc(13px * var(--t)); }
-</style>
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="style.css">
+<script src="app.js" defer></script>
 </head>
-<body>
-<main>
-  <div class="top">
-    <div class="brand"><svg class="logo" xmlns="http://www.w3.org/2000/svg" viewBox="67 -1490 4406 1514" role="img" aria-label="oath"><g fill="currentColor"><path d="M573 24C875 24 1078 -201 1078 -526C1078 -853 875 -1080 573 -1080C271 -1080 67 -853 67 -526C67 -201 271 24 573 24ZM573 -158C392 -158 281 -301 281 -526C281 -753 393 -898 573 -898C753 -898 865 -753 865 -526C865 -302 754 -158 573 -158Z"/><path d="M1647 17C1829 17 1915 -65 1959 -150H1963V0H2171V-724C2171 -939 2012 -1077 1752 -1077C1488 -1077 1317 -935 1307 -734H1514C1522 -831 1614 -904 1749 -904C1883 -904 1962 -830 1962 -728V-719C1962 -642 1896 -644 1698 -620C1483 -595 1281 -543 1281 -302C1281 -91 1437 17 1647 17ZM1690 -153C1567 -153 1491 -207 1491 -298C1491 -405 1595 -446 1710 -463C1822 -479 1934 -496 1963 -519V-395C1963 -265 1876 -153 1690 -153Z"/><path d="M2978 -1056H2764V-1344H2552V-1056H2366V-882H2552V-252C2552 -82 2647 0 2845 0H2978V-174H2875C2791 -174 2764 -201 2764 -279V-882H2978Z"/><path d="M3416 -608C3416 -804 3527 -888 3671 -888C3817 -888 3902 -801 3902 -632V0H4113V-658C4113 -934 3948 -1077 3731 -1077C3594 -1077 3488 -1019 3416 -904V-1490H3205V0H3416Z"/><circle cx="4348.0" cy="-117.0" r="125.0"/></g></svg></div>
-    <div class="lang"><button id="l-en" type="button">EN</button><button id="l-uk" type="button">UA</button></div>
+<body id="top">
+<a class="skip" href="#main" data-i18n="skip">Skip to content</a>
+
+<header class="site-header">
+  <div class="wrap bar">
+    <a class="brand" href="#top" aria-label="oath">
+      <svg viewBox="67 -1490 4406 1514" aria-hidden="true" focusable="false"><path d="M573 24C875 24 1078 -201 1078 -526C1078 -853 875 -1080 573 -1080C271 -1080 67 -853 67 -526C67 -201 271 24 573 24ZM573 -158C392 -158 281 -301 281 -526C281 -753 393 -898 573 -898C753 -898 865 -753 865 -526C865 -302 754 -158 573 -158Z"/><path d="M1647 17C1829 17 1915 -65 1959 -150H1963V0H2171V-724C2171 -939 2012 -1077 1752 -1077C1488 -1077 1317 -935 1307 -734H1514C1522 -831 1614 -904 1749 -904C1883 -904 1962 -830 1962 -728V-719C1962 -642 1896 -644 1698 -620C1483 -595 1281 -543 1281 -302C1281 -91 1437 17 1647 17ZM1690 -153C1567 -153 1491 -207 1491 -298C1491 -405 1595 -446 1710 -463C1822 -479 1934 -496 1963 -519V-395C1963 -265 1876 -153 1690 -153Z"/><path d="M2978 -1056H2764V-1344H2552V-1056H2366V-882H2552V-252C2552 -82 2647 0 2845 0H2978V-174H2875C2791 -174 2764 -201 2764 -279V-882H2978Z"/><path d="M3416 -608C3416 -804 3527 -888 3671 -888C3817 -888 3902 -801 3902 -632V0H4113V-658C4113 -934 3948 -1077 3731 -1077C3594 -1077 3488 -1019 3416 -904V-1490H3205V0H3416Z"/><circle cx="4348.0" cy="-117.0" r="125.0"/></svg>
+    </a>
+    <nav class="bar-right" aria-label="Site">
+      <div class="lang" role="group" aria-label="Language" data-i18n-attr="aria-label:lang_label">
+        <button type="button" data-lang="en" aria-pressed="true">EN</button>
+        <button type="button" data-lang="uk" aria-pressed="false">UA</button>
+      </div>
+      <a class="link" href="https://github.com/Tymofii-thc/oath" rel="noopener">GitHub</a>
+    </nav>
   </div>
+</header>
 
-  <h1 class="sr">oath.</h1>
-  <p class="lead" data-i="lead"></p>
+<main id="main">
 
-  <div class="flow" aria-label="pipeline">
-    <div class="node"><b>git commit</b><span data-i="n1"></span></div><div class="arrow">→</div>
-    <div class="node"><b>CI build</b><span data-i="n2"></span></div><div class="arrow">→</div>
-    <div class="node"><b>Solana Memo tx</b><span data-i="n3"></span></div><div class="arrow">→</div>
-    <div class="node gate"><b>verify gate</b><span data-i="n4"></span></div>
-  </div>
-
-  <h2 data-i="live"></h2>
-  <div class="panel">
-    <div class="row">
-      <div><label for="key">signer (CI public key, comma-separated for rotation)</label><input id="key" autocomplete="off" spellcheck="false"></div>
-      <div><label for="net">network</label><select id="net"><option value="devnet">devnet</option><option value="mainnet">mainnet</option></select></div>
+  <section class="hero" aria-labelledby="hero-h">
+    <div class="wrap">
+      <h1 id="hero-h" data-i18n="hero_h1">Don't deploy what the pipeline didn't build.</h1>
+      <p class="lead" data-i18n="hero_p">Oath stops an image from reaching production unless your own pipeline built it. Every CI build records commit → digest → time in Solana, as a standard Memo transaction signed by the CI key. Before deploy, oath verify checks the image digest against those records and blocks the deploy if there is none.</p>
+      <div class="cta">
+        <button type="button" class="btn primary" id="cta-run" data-i18n="cta_run">Run live check</button>
+        <a class="btn ghost" href="#integrate" data-i18n="cta_docs">Integrate in 3 steps</a>
+      </div>
+      <ul class="facts">
+        <li data-i18n="fact1">Standard Memo program, no custom smart contract</li>
+        <li data-i18n="fact2">CLI and Kubernetes admission webhook</li>
+        <li data-i18n="fact3">devnet by default, mainnet supported</li>
+      </ul>
     </div>
-    <label for="digest">image digest</label>
-    <input id="digest" placeholder="sha256:… or repo@sha256:…" autocomplete="off" spellcheck="false">
-    <div class="chips">
-      <button class="chip" id="p-good" type="button" data-i="pgood"></button>
-      <button class="chip" id="p-evil" type="button" data-i="pevil"></button>
-      <button class="run" id="go" type="button">oath verify</button>
+  </section>
+
+  <section class="section" aria-labelledby="flow-h">
+    <div class="wrap">
+      <h2 id="flow-h" data-i18n="flow_h">How it works</h2>
+      <ol class="flow">
+        <li class="step"><span class="n">01</span><b>git commit</b><span class="sub" data-i18n="s1_sub">source revision</span></li>
+        <li class="step"><span class="n">02</span><b>CI build</b><span class="sub" data-i18n="s2_sub">image digest</span></li>
+        <li class="step"><span class="n">03</span><b>Solana Memo tx</b><span class="sub" data-i18n="s3_sub">signed by the CI key</span></li>
+        <li class="step gate"><span class="n">04</span><b>verify gate</b><span class="sub" data-i18n="s4_sub">oath verify · admission webhook</span></li>
+      </ol>
+      <div class="outcomes">
+        <p class="outcome ok"><span class="code">exit 0</span> <span data-i18n="out_ok">verified, the deploy proceeds</span></p>
+        <p class="outcome bad"><span class="code">exit 1 / denied</span> <span data-i18n="out_bad">no record, the deploy is stopped</span></p>
+      </div>
+      <div class="format">
+        <h3 data-i18n="fmt_h">Record format</h3>
+        <p class="muted" data-i18n="fmt_p">One Memo per build, fields separated by a vertical bar:</p>
+        <pre class="code-block"><code>pod1|ghcr.io/me/app|3f9a1c0d2b7e|sha256:&lt;64 hex&gt;|2026-10-12T21:04:11Z</code></pre>
+        <p class="muted small" data-i18n="fmt_legend">version | image name (the record is bound to it) | first 12 characters of the commit | image digest | ISO time</p>
+      </div>
     </div>
-    <div class="term" id="out" role="status" aria-live="polite"><span class="d" data-i="idle"></span></div>
-  </div>
+  </section>
 
-  <h2 data-i="use"></h2>
-  <div class="panel">
-    <div class="tabs"><button class="on" data-tab="gh" type="button">GitHub Actions</button><button data-tab="cli" type="button">CLI</button><button data-tab="k8s" type="button">Kubernetes</button></div>
-    <pre id="snip"></pre>
-  </div>
+  <section class="section" id="verify" aria-labelledby="verify-h">
+    <div class="wrap">
+      <h2 id="verify-h" data-i18n="live_h">Live verifier</h2>
+      <p class="lead" data-i18n="live_p">Runs in your browser: it queries the Solana RPC directly with the same logic as the CLI.</p>
+      <div class="verify-grid">
+        <form id="vform" class="panel" novalidate autocomplete="off">
+          <div class="field">
+            <label for="f-key" data-i18n="f_signer">Signer (public key, comma-separated)</label>
+            <input id="f-key" class="mono" type="text" spellcheck="false" autocapitalize="off" autocomplete="off" aria-describedby="e-key">
+            <p id="e-key" class="err" hidden></p>
+          </div>
+          <div class="field">
+            <label for="f-net" data-i18n="f_net">Network</label>
+            <select id="f-net">
+              <option value="devnet">devnet</option>
+              <option value="mainnet">mainnet</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="f-digest" data-i18n="f_digest">Image digest</label>
+            <input id="f-digest" class="mono" type="text" spellcheck="false" autocapitalize="off" autocomplete="off" aria-describedby="e-digest">
+            <p id="e-digest" class="err" hidden></p>
+          </div>
+          <div class="presets" role="group" aria-labelledby="preset-l">
+            <span id="preset-l" class="small muted" data-i18n="presets">One-click demo</span>
+            <button type="button" class="btn ghost" id="p-good" data-i18n="p_good">known-good digest</button>
+            <button type="button" class="btn ghost" id="p-bad" data-i18n="p_bad">tampered digest</button>
+          </div>
+          <button type="submit" class="btn primary wide" id="b-verify">oath verify</button>
+        </form>
 
-  <h2 data-i="rec"></h2>
-  <div class="panel">
-    <div class="mono hint" style="margin-bottom:8px">pod1|&lt;image&gt;|&lt;commit12&gt;|&lt;sha256 digest&gt;|&lt;ISO time&gt;</div>
-    <div class="tw"><table id="list" hidden><thead><tr><th data-i="tt"></th><th>commit</th><th>image</th><th>digest</th><th>tx</th></tr></thead><tbody></tbody></table></div>
-    <p class="hint" id="empty" data-i="empty"></p>
-  </div>
+        <div class="term" id="term" data-state="idle">
+          <div class="term-bar">
+            <span data-i18n="term_title">terminal output</span>
+            <span class="chip" id="term-chip">idle</span>
+          </div>
+          <div class="term-body" id="term-body" role="status" aria-live="polite" aria-atomic="true" aria-busy="false"><pre id="out"></pre></div>
+        </div>
+      </div>
+    </div>
+  </section>
 
-  <h2 data-i="tm"></h2>
-  <div class="panel tw">
-    <table>
-      <thead><tr><th data-i="tm1"></th><th data-i="tm2"></th></tr></thead>
-      <tbody>
-        <tr><td data-i="a1"></td><td class="yes" data-i="r1"></td></tr>
-        <tr><td data-i="a2"></td><td class="yes" data-i="r2"></td></tr>
-        <tr><td data-i="a3"></td><td class="yes" data-i="r3"></td></tr>
-        <tr><td data-i="a4"></td><td class="yes" data-i="r4"></td></tr>
-        <tr><td data-i="a5"></td><td class="no" data-i="r5"></td></tr>
-        <tr><td data-i="a6"></td><td class="no" data-i="r6"></td></tr>
-      </tbody>
-    </table>
-  </div>
+  <section class="section" id="integrate" aria-labelledby="int-h">
+    <div class="wrap">
+      <h2 id="int-h" data-i18n="int_h">Integrate</h2>
+      <p class="lead" data-i18n="int_p">Three steps: create a CI key, anchor after the build, verify before the deploy.</p>
+      <div class="tabs">
+        <div class="tablist" role="tablist" aria-label="Integration" data-i18n-attr="aria-label:int_tabs">
+          <button type="button" role="tab" id="tab-gh" aria-controls="panel-gh" aria-selected="true" tabindex="0">GitHub Actions</button>
+          <button type="button" role="tab" id="tab-cli" aria-controls="panel-cli" aria-selected="false" tabindex="-1">CLI</button>
+          <button type="button" role="tab" id="tab-k8s" aria-controls="panel-k8s" aria-selected="false" tabindex="-1">Kubernetes</button>
+        </div>
 
-  <footer><span data-i="foot"></span> <a href="https://github.com/Tymofii-thc/oath">github.com/Tymofii-thc/oath</a></footer>
-</main>
+        <div role="tabpanel" id="panel-gh" aria-labelledby="tab-gh" class="tabpanel" tabindex="0">
+          <p class="muted" data-i18n="gh_p">Add the secret SOLANA_SECRET_KEY and the variable OATH_SIGNER (the public key) to the repository. For devnet SOL use faucet.solana.com.</p>
+          <div class="code-wrap"><button type="button" class="copy" data-copy="code-gh" data-i18n="copy">Copy</button>
+<pre class="code-block" id="code-gh"><code># once: create the CI key (prints public and secret key)
+npm install
+node scripts/keygen.mjs
 
-<script>
-const $ = (id) => document.getElementById(id);
-const RPCS = { devnet: "https://api.devnet.solana.com", mainnet: "https://solana-rpc.publicnode.com" }; // api.mainnet-beta.solana.com answers 403 to browser (Origin) requests
-const DEMO_KEY = "5D4W8x8UeqW3qVi9uzNzvJPWiJZQaRWVR9ru2ckFhoih";
-const DEMO_GOOD = "sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc";
-const DEMO_EVIL = "sha256:" + "1".repeat(64);
-
-const SNIP = {
-  gh: `# after build
+# in your workflow, after the build: anchor the digest
 - uses: Tymofii-thc/oath@main
   with:
-    image: ghcr.io/\${{ github.repository }}
-    digest: \${{ steps.build.outputs.digest }}
-    secret-key: \${{ secrets.SOLANA_SECRET_KEY }}
+    image: ghcr.io/${{ github.repository }}
+    digest: ${{ steps.build.outputs.digest }}
+    secret-key: ${{ secrets.SOLANA_SECRET_KEY }}
 
-# before deploy: exit 1 stops the job
-- run: docker pull $IMAGE:latest
-- run: npx --yes --allow-git=all github:Tymofii-thc/oath verify \\
-        --signer "\${{ vars.OATH_SIGNER }}" --image $IMAGE:latest`,
-  cli: `oath verify --signer <pubkey[,pubkey]> --digest sha256:…
-oath verify --signer <pubkey> --image ghcr.io/me/app:latest   # RepoDigest from local docker
-oath verify --signer <pubkey> --container prod                # image that is RUNNING now
-  --network devnet|mainnet | --rpc <url>   --max-age <days>   --no-bind
+# before the deploy: verify (a failed check fails the job)
+- run: docker pull ghcr.io/${{ github.repository }}:latest
+- run: npx --yes --allow-git=all github:Tymofii-thc/oath verify --signer "${{ vars.OATH_SIGNER }}" --image ghcr.io/${{ github.repository }}:latest</code></pre></div>
+        </div>
 
-exit 0 verified · 1 not verified · 2 usage/network error`,
-  k8s: `OATH_SIGNER=<pubkey> OATH_NETWORK=mainnet deploy/install.sh
+        <div role="tabpanel" id="panel-cli" aria-labelledby="tab-cli" class="tabpanel" tabindex="0" hidden>
+          <p class="muted" data-i18n="cli_p">No dependencies. Exit codes: 0 verified, 1 not verified, 2 error (network, arguments).</p>
+          <div class="code-wrap"><button type="button" class="copy" data-copy="code-cli" data-i18n="copy">Copy</button>
+<pre class="code-block" id="code-cli"><code>node bin/oath.mjs verify --signer &lt;pubkey&gt; --digest sha256:…
+node bin/oath.mjs verify --signer &lt;pubkey&gt; --image ghcr.io/me/app:latest
+node bin/oath.mjs verify --signer &lt;pubkey&gt; --container prod    # the image running NOW
 
+# several signers (key rotation) and a maximum record age
+node bin/oath.mjs verify --signer &lt;a&gt;,&lt;b&gt; --max-age 30 --image ghcr.io/me/app:latest
+
+# mainnet
+node bin/oath.mjs verify --signer &lt;pubkey&gt; --network mainnet --image ghcr.io/me/app:latest</code></pre></div>
+        </div>
+
+        <div role="tabpanel" id="panel-k8s" aria-labelledby="tab-k8s" class="tabpanel" tabindex="0" hidden>
+          <p class="muted" data-i18n="k8s_p">The webhook checks every new Pod, so kubectl apply cannot bypass the pipeline. It fails closed: if the registry, the RPC or the webhook is unreachable, new Pods are not admitted. Start with OATH_MODE=audit.</p>
+          <div class="code-wrap"><button type="button" class="copy" data-copy="code-k8s" data-i18n="copy">Copy</button>
+<pre class="code-block" id="code-k8s"><code># installs the webhook into the namespace oath-system (generates TLS)
+OATH_SIGNER=&lt;public key&gt; OATH_NETWORK=devnet deploy/install.sh
+
+# first rollout: allow everything, only warn
+OATH_MODE=audit OATH_SIGNER=&lt;public key&gt; deploy/install.sh
+
+# a Pod from an image the pipeline did not build:
 kubectl run t --image=nginx
-# Error: admission webhook "pods.oath.io" denied the request:
-#   oath: refusing to admit pod. nginx (sha256:df22…): no pipeline build anchored by the trusted signer(s)
+# → denied: no pipeline build anchored by the trusted signer(s)
 
-# mutating: tag is pinned to the verified digest, failurePolicy: Fail (fail closed)`,
-};
+# private registries
+OATH_REGISTRY_AUTH='{"ghcr.io":{"username":"u","password":"token"}}'</code></pre></div>
+        </div>
+      </div>
+    </div>
+  </section>
 
-const T = {
-  en: {
-    lead: "On-chain provenance gate for container deploys. CI anchors every image digest in a Solana Memo transaction signed by a dedicated key. Before deploy (CLI) or at pod admission (webhook), the digest about to run must have a record from the trusted signer, otherwise the deploy is blocked. No custom smart contract.",
-    n1: "source of truth for the code", n2: "builds and pushes image, gets digest", n3: "pod1|image|commit|digest|time, signed by CI key", n4: "CLI exit 1 / admission denied",
-    live: "Live verifier (queries Solana right now)", pgood: "load known-good digest", pevil: "load tampered digest", idle: "$ oath verify … (press the button)",
-    use: "Integrate", rec: "Records anchored by this signer", tt: "time", empty: "Run a verification to load the signer's records.",
-    tm: "Threat model", tm1: "Scenario", tm2: "Outcome",
-    a1: "Image replaced in the registry under the same tag", r1: "blocked: digest has no record",
-    a2: "Tag moved between check and pull", r2: "blocked: webhook pins tag to the verified digest",
-    a3: "CI admin rewrites the build log", r3: "irrelevant: the record is on a public ledger",
-    a4: "Digest anchored for another image reused for this one", r4: "blocked: record is bound to the image name",
-    a5: "CI signing key stolen", r5: "NOT covered: attacker can anchor a digest. Mitigations: rotation, revocation, --max-age. Hardware / keyless signing is future work.",
-    a6: "Malicious or vulnerable code built honestly", r6: "NOT covered: provenance, not security (optional Trivy gate in CI).",
-    foot: "Open source ·", checking: "resolving signatures…", none: "No records for this signer on this network.", fail: "RPC error",
-    nokey: "missing signer", nodig: "no sha256:<64 hex> digest found in input",
-  },
-  uk: {
-    lead: "On-chain перевірка походження образів перед деплоєм. CI записує digest кожного образу в Memo-транзакцію Solana, підписану окремим ключем. Перед деплоєм (CLI) або при допуску pod-а (webhook) digest, що збираються запустити, мусить мати запис від довіреного підписанта, інакше деплой блокується. Без власного смарт-контракту.",
-    n1: "джерело істини для коду", n2: "збирає й пушить образ, отримує digest", n3: "pod1|image|commit|digest|time, підпис ключа CI", n4: "CLI exit 1 / admission denied",
-    live: "Живий верифікатор (запит до Solana зараз)", pgood: "підставити валідний digest", pevil: "підставити підроблений digest", idle: "$ oath verify … (натисни кнопку)",
-    use: "Підключення", rec: "Записи цього підписанта", tt: "час", empty: "Запусти перевірку, щоб завантажити записи підписанта.",
-    tm: "Модель загроз", tm1: "Сценарій", tm2: "Результат",
-    a1: "Образ у реєстрі підмінено під тим самим тегом", r1: "блокується: для digest нема запису",
-    a2: "Тег переставили між перевіркою і pull", r2: "блокується: webhook фіксує тег на перевірений digest",
-    a3: "Адмін CI переписує лог збірки", r3: "не впливає: запис у публічному реєстрі",
-    a4: "Digest, зафіксований для іншого образу, видають за цей", r4: "блокується: запис привʼязаний до імені образу",
-    a5: "Вкрадено ключ підпису CI", r5: "НЕ покрито: атакувальник може записати digest. Пом'якшення: ротація, відкликання, --max-age. Апаратні / keyless ключі це наступний крок.",
-    a6: "Шкідливий або вразливий код, зібраний чесно", r6: "НЕ покрито: це походження, а не безпека (необовʼязковий Trivy-гейт у CI).",
-    foot: "Відкритий код ·", checking: "резолвлю підписи…", none: "Для цього підписанта в цій мережі записів нема.", fail: "помилка RPC",
-    nokey: "не вказано підписанта", nodig: "у вводі нема digest виду sha256:<64 hex>",
-  },
-};
-let lang = new URLSearchParams(location.search).get("lang") || ((navigator.language || "").toLowerCase().startsWith("uk") ? "uk" : "en");
-if (!T[lang]) lang = "en";
-const t = (k) => T[lang][k];
-function applyLang() {
-  document.documentElement.lang = lang;
-  document.querySelectorAll("[data-i]").forEach((el) => { el.textContent = t(el.dataset.i); });
-  $("l-en").className = lang === "en" ? "on" : ""; $("l-uk").className = lang === "uk" ? "on" : "";
-}
-$("l-en").onclick = () => { lang = "en"; applyLang(); };
-$("l-uk").onclick = () => { lang = "uk"; applyLang(); };
+  <section class="section" id="records" aria-labelledby="rec-h">
+    <div class="wrap">
+      <div class="head-row">
+        <div>
+          <h2 id="rec-h" data-i18n="rec_h">Signer records</h2>
+          <p class="lead" data-i18n="rec_p">Pipeline records anchored by the signer above, newest first.</p>
+        </div>
+        <button type="button" class="btn ghost" id="b-records" data-i18n="rec_load">Load records</button>
+      </div>
+      <p id="rec-status" class="muted small" role="status" aria-live="polite"></p>
+      <div class="table-wrap" tabindex="0" role="region" aria-labelledby="rec-h">
+        <table id="rec-table">
+          <thead>
+            <tr>
+              <th scope="col" data-i18n="c_time">Time</th>
+              <th scope="col" data-i18n="c_commit">Commit</th>
+              <th scope="col" data-i18n="c_image">Image</th>
+              <th scope="col" data-i18n="c_digest">Digest</th>
+              <th scope="col" data-i18n="c_tx">Transaction</th>
+            </tr>
+          </thead>
+          <tbody id="rec-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
 
-document.querySelectorAll(".tabs button").forEach((b) => (b.onclick = () => {
-  document.querySelectorAll(".tabs button").forEach((x) => (x.className = ""));
-  b.className = "on"; $("snip").textContent = SNIP[b.dataset.tab];
-}));
-$("snip").textContent = SNIP.gh;
+  <section class="section" id="threats" aria-labelledby="thr-h">
+    <div class="wrap">
+      <h2 id="thr-h" data-i18n="thr_h">Threat model</h2>
+      <div class="table-wrap" tabindex="0" role="region" aria-labelledby="thr-h">
+        <table>
+          <thead>
+            <tr>
+              <th scope="col" data-i18n="t_scn">Scenario</th>
+              <th scope="col" data-i18n="t_res">Result</th>
+              <th scope="col" data-i18n="t_why">Why</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><th scope="row" data-i18n="r1_s">Image swapped in the registry under the same tag</th><td><span class="tag blocked" data-i18n="tag_blocked">Blocked</span></td><td data-i18n="r1_w">The pulled digest has no record from a trusted signer.</td></tr>
+            <tr><th scope="row" data-i18n="r2_s">Manual docker push or kubectl apply, bypassing CI</th><td><span class="tag blocked" data-i18n="tag_blocked">Blocked</span></td><td data-i18n="r2_w">oath verify exits with 1; the admission webhook denies the Pod.</td></tr>
+            <tr><th scope="row" data-i18n="r3_s">Registry token leaked, CI signing key safe</th><td><span class="tag blocked" data-i18n="tag_blocked">Blocked</span></td><td data-i18n="r3_w">The attacker can push an image but cannot anchor its digest.</td></tr>
+            <tr><th scope="row" data-i18n="r4_s">Record anchored for a different image name</th><td><span class="tag blocked" data-i18n="tag_blocked">Blocked</span></td><td data-i18n="r4_w">Records are bound to the image name (disable with --no-bind).</td></tr>
+            <tr><th scope="row" data-i18n="r5_s">Old but legitimate digest replayed</th><td><span class="tag limited" data-i18n="tag_limited">Limited</span></td><td data-i18n="r5_w">Use --max-age to reject old records; without it the digest passes.</td></tr>
+            <tr><th scope="row" data-i18n="r6_s">CI key compromised, then revoked</th><td><span class="tag limited" data-i18n="tag_mitigated">Mitigated</span></td><td data-i18n="r6_w">Remove the key from the signer list: its records stop counting at once. Records anchored before you noticed are not detected.</td></tr>
+            <tr><th scope="row" data-i18n="r7_s">Registry, RPC or webhook unreachable</th><td><span class="tag neutral" data-i18n="tag_closed">Fail closed</span></td><td data-i18n="r7_w">New Pods are not admitted, running Pods are untouched. The CLI exits with 2.</td></tr>
+          </tbody>
+        </table>
+      </div>
 
-const net = () => $("net").value || "devnet";
-const cluster = () => (net() === "mainnet" ? "mainnet-beta" : "devnet");
-$("key").value = DEMO_KEY; $("digest").value = DEMO_GOOD;
-try {
-  const q = new URLSearchParams(location.search);
-  if (q.get("key")) $("key").value = q.get("key");
-  if (q.get("digest")) $("digest").value = q.get("digest");
-  if (q.get("net") && RPCS[q.get("net")]) $("net").value = q.get("net");
-} catch (e) {}
+      <div class="notcovered">
+        <h3 data-i18n="nc_h">Not covered</h3>
+        <ul>
+          <li><strong data-i18n="nc1_h">Stolen CI signing key.</strong> <span data-i18n="nc1_p">Whoever holds SOLANA_SECRET_KEY can anchor a forged digest. Rotation, revocation, --max-age and image binding limit the damage. Hardware keys and keyless signing are planned, not implemented.</span></li>
+          <li><strong data-i18n="nc2_h">Malicious code built honestly.</strong> <span data-i18n="nc2_p">The chain proves that the signer recorded a digest at a given time, not that the build was honest or safe. That needs SLSA build attestations. The optional Trivy scan only checks fixable CRITICAL vulnerabilities.</span></li>
+          <li><strong data-i18n="nc3_h">Mainnet in CI.</strong> <span data-i18n="nc3_p">Mainnet is supported, but CI has not been run on live mainnet yet. devnet is the default and has no retention guarantees.</span></li>
+          <li><strong data-i18n="nc4_h">Availability and existing Pods.</strong> <span data-i18n="nc4_p">Registry or RPC outages block new Pods. Pods created before the webhook was installed are not checked; use oath verify --container for them.</span></li>
+        </ul>
+      </div>
+    </div>
+  </section>
 
-async function rpc(method, params) {
-  const r = await fetch(RPCS[net()], { method: "POST", headers: { "content-type": "application/json" },
-    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }) });
-  if (!r.ok) throw new Error("RPC HTTP " + r.status + " (" + new URL(RPCS[net()]).host + ")");
-  const j = await r.json();
-  if (j.error) throw new Error(j.error.message);
-  return j.result;
-}
-// The RPC returns memo as "[<len>] <text>"; several memos in one tx are joined with "; ".
-function parseMemo(memo) {
-  if (!memo) return [];
-  return memo.split("; ").map((m) => m.replace(/^\[\d+\]\s*/, "")).filter((m) => m.startsWith("pod1|"))
-    .map((m) => { const [, image, commit, digest, ts] = m.split("|"); return { image, commit, digest, ts }; });
-}
-function extractDigest(s) { const m = (s || "").match(/sha256:[0-9a-fA-F]{64}/); return m ? m[0].toLowerCase() : null; }
-function cell(tr, text, cls) { const td = document.createElement("td"); if (cls) td.className = cls; td.textContent = text; tr.appendChild(td); return td; }
-const txUrl = (sig) => `https://explorer.solana.com/tx/${encodeURIComponent(sig)}?cluster=${cluster()}`;
+</main>
 
-// Terminal-style output: lines = [{cls, text} | {link:{href,text}}]
-function term(kind, lines) {
-  const o = $("out"); o.className = "term " + kind; o.replaceChildren();
-  for (const l of lines) {
-    const row = document.createElement("div");
-    if (l.href) { const a = document.createElement("a"); a.href = l.href; a.target = "_blank"; a.rel = "noopener"; a.textContent = l.text; row.append(l.pre || "", a); }
-    else { const s = document.createElement("span"); if (l.cls) s.className = l.cls; s.textContent = l.text; row.appendChild(s); }
-    o.appendChild(row);
-  }
-}
+<footer class="site-footer">
+  <div class="wrap foot">
+    <span data-i18n="built">Built for Colosseum</span>
+    <span class="dot-sep" aria-hidden="true">·</span>
+    <a class="link" href="https://github.com/Tymofii-thc/oath" rel="noopener">GitHub</a>
+    <span class="dot-sep" aria-hidden="true">·</span>
+    <a class="link" href="https://github.com/Tymofii-thc/oath" rel="noopener" data-i18n="license">License: see repository</a>
+  </div>
+</footer>
 
-function renderList(builds, want) {
-  const tb = document.querySelector("#list tbody"); tb.replaceChildren();
-  $("list").hidden = builds.length === 0; $("empty").hidden = builds.length > 0;
-  if (!builds.length) $("empty").textContent = t("none");
-  for (const b of builds) {
-    const tr = document.createElement("tr");
-    if (b.digest === want) tr.className = "match";
-    cell(tr, b.time ? new Date(b.time * 1000).toISOString().replace(".000Z", "Z") : b.ts);
-    cell(tr, b.commit, "m"); cell(tr, b.image, "m"); cell(tr, b.digest, "m");
-    const td = cell(tr, "", "m"), a = document.createElement("a");
-    a.href = txUrl(b.sig); a.target = "_blank"; a.rel = "noopener"; a.textContent = b.sig.slice(0, 8) + "…"; td.appendChild(a);
-    tb.appendChild(tr);
-  }
-}
-
-let busy = false;
-async function verify() {
-  if (busy) return;
-  const keys = $("key").value.split(",").map((k) => k.trim()).filter(Boolean);
-  const want = extractDigest($("digest").value);
-  if (!keys.length) return term("bad", [{ cls: "n", text: "error: " + t("nokey") }, { cls: "d", text: "exit code: 2" }]);
-  if (!want) return term("bad", [{ cls: "n", text: "error: " + t("nodig") }, { cls: "d", text: "exit code: 2" }]);
-
-  busy = true;
-  const btns = document.querySelectorAll("button"); btns.forEach((b) => (b.disabled = true));
-  term("", [{ cls: "d", text: `$ oath verify --signer ${keys.join(",")} --digest ${want} --network ${net()}` }, { cls: "d", text: t("checking") }]);
-  const cmd = { cls: "d", text: `$ oath verify --signer ${keys.join(",")} --digest ${want} --network ${net()}` };
-  try {
-    const builds = [];
-    for (const key of keys) {
-      const sigs = await rpc("getSignaturesForAddress", [key, { limit: 1000 }]);
-      for (const s of sigs) {
-        if (s.err) continue;
-        for (const rec of parseMemo(s.memo)) builds.push({ ...rec, signer: key, sig: s.signature, time: s.blockTime });
-      }
-    }
-    renderList(builds, want);
-    const hit = builds.find((b) => b.digest === want);
-    if (hit) {
-      const when = hit.time ? new Date(hit.time * 1000).toISOString().replace(".000Z", "Z") : hit.ts;
-      term("ok", [cmd, { cls: "v", text: "VERIFIED  " + want }, { text: `  built from commit ${hit.commit} (${hit.image})` },
-        { text: `  anchored at ${when} by ${hit.signer}` }, { pre: "  tx ", href: txUrl(hit.sig), text: hit.sig }, { cls: "d", text: "exit code: 0  → deploy proceeds" }]);
-    } else {
-      term("bad", [cmd, { cls: "n", text: "NOT VERIFIED  " + want }, { text: `  No pipeline build with this digest was anchored by ${keys.join(" / ")}.` },
-        { text: "  Refusing to proceed: the image may have been replaced outside the pipeline." }, { cls: "d", text: "exit code: 1  → deploy blocked" }]);
-    }
-  } catch (e) {
-    term("bad", [cmd, { cls: "n", text: t("fail") + ": " + e.message }, { cls: "d", text: "exit code: 2" }]);
-  } finally {
-    busy = false; btns.forEach((b) => (b.disabled = false));
-  }
-}
-
-$("p-good").onclick = () => { $("net").value = "devnet"; $("key").value = DEMO_KEY; $("digest").value = DEMO_GOOD; verify(); };
-$("p-evil").onclick = () => { $("net").value = "devnet"; $("key").value = DEMO_KEY; $("digest").value = DEMO_EVIL; verify(); };
-$("go").onclick = verify;
-applyLang();
-const qs = new URLSearchParams(location.search);
-if (qs.get("key") && qs.get("digest")) verify();
-</script>
+<noscript><p class="noscript">The live verifier needs JavaScript. / Живому верифікатору потрібен JavaScript.</p></noscript>
 </body>
 </html>
