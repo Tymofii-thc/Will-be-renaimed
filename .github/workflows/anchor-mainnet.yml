@@ -1,0 +1,32 @@
+name: anchor-mainnet
+
+# Manual: anchors an image digest on Solana MAINNET with a separate key (secret SOLANA_SECRET_KEY_MAINNET, needs a little SOL for fees).
+on:
+  workflow_dispatch:
+    inputs:
+      image:
+        description: Image name without tag, e.g. ghcr.io/owner/app
+        required: true
+      digest:
+        description: Image digest, sha256:<64 hex>
+        required: true
+      rpc:
+        description: Mainnet RPC URL
+        required: false
+        default: https://api.mainnet-beta.solana.com
+
+permissions:
+  contents: read
+
+jobs:
+  anchor:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Anchor on mainnet
+        uses: ./
+        with:
+          image: ${{ inputs.image }}
+          digest: ${{ inputs.digest }}
+          secret-key: ${{ secrets.SOLANA_SECRET_KEY_MAINNET }}
+          rpc: ${{ inputs.rpc }}

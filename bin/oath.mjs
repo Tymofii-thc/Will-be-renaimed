@@ -4,6 +4,7 @@
 //   oath verify --signer <pubkey[,pubkey…]> --digest sha256:<hex>
 //   oath verify --signer <pubkey> --image ghcr.io/me/app:latest      (digest read from local docker)
 //   oath verify --signer <pubkey> --container prod                   (digest of the RUNNING image)
+//   oath audit  --signer <pubkey> [--file pods.json] [--skip-namespaces a,b]   (every Pod running in the current kube context)
 //
 // Options: --network devnet|mainnet | --rpc <url>   --max-age <days>   --limit <txs per signer, default 1000>
 //          --no-bind  (don't require the record's image name to match the image being checked)
@@ -12,7 +13,9 @@
 // Exit codes: 0 = verified, 1 = NOT verified, 2 = usage / network error.
 // Put it right before your deploy step: if it exits non-zero, the deploy stops.
 import { execFileSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { extractDigest, findRecord, repoName, resolveRpc } from "../lib/oath.mjs";
+import { collectImages } from "../lib/audit.mjs";
 
 function arg(name) {
   const i = process.argv.indexOf(`--${name}`);
@@ -102,10 +105,54 @@ async function verify() {
   process.exit(1);
 }
 
+// Checks every running container of the current cluster (or of a saved `kubectl get pods -A -o json`).
+async function audit() {
+  const signers = (arg("signer") || process.env.OATH_SIGNER || process.env.POD_SIGNER || "").split(",").map((s) => s.trim()).filter(Boolean);
+  if (!signers.length) fail(2, "Missing --signer (or OATH_SIGNER).");
+  let rpcUrl;
+  try { rpcUrl = resolveRpc({ rpc: arg("rpc"), network: arg("network") }); } catch (e) { fail(2, e.message); }
+
+  let raw;
+  const file = arg("file");
+  try {
+    raw = file
+      ? readFileSync(file === "-" ? 0 : file, "utf8")
+      : execFileSync("kubectl", ["get", "pods", "-A", "-o", "json"], { encoding: "utf8", maxBuffer: 256 * 1024 * 1024 });
+  } catch (e) {
+    fail(2, `cannot read pods: ${(e.stderr || e.message).toString().trim()}`);
+  }
+  let list;
+  try { list = JSON.parse(raw); } catch { fail(2, "pods input is not valid JSON"); }
+
+  const skip = (arg("skip-namespaces") ?? "kube-system,kube-public,kube-node-lease,oath-system").split(",").filter(Boolean);
+  const images = collectImages(list, { skipNamespaces: skip });
+  const maxAgeDays = arg("max-age");
+  const cache = new Map();
+  let bad = 0;
+  for (const im of images) {
+    if (!im.digest) { bad++; console.log(`UNKNOWN      ${im.where}  ${im.image}  (no digest in imageID)`); continue; }
+    const key = `${im.repo}@${im.digest}`;
+    if (!cache.has(key)) {
+      try {
+        cache.set(key, await findRecord({ signers, digest: im.digest, rpcUrl, limit: Number(arg("limit") || 1000), image: flag("no-bind") ? undefined : im.repo, maxAgeSeconds: maxAgeDays ? Number(maxAgeDays) * 86400 : undefined }));
+      } catch (e) {
+        fail(2, `RPC lookup failed: ${e.message}`);
+      }
+    }
+    const rec = cache.get(key);
+    if (rec) console.log(`VERIFIED     ${im.where}  ${im.image}  commit ${rec.commit}`);
+    else { bad++; console.log(`NOT VERIFIED ${im.where}  ${im.image}  ${im.digest}`); }
+  }
+  console.log(`\n${images.length} containers checked, ${bad} not verified.`);
+  process.exit(bad ? 1 : 0);
+}
+
 const cmd = process.argv[2];
 if (cmd === "verify") {
   await verify();
+} else if (cmd === "audit") {
+  await audit();
 } else {
-  console.error("Usage: oath verify --signer <pubkey[,pubkey]> (--digest sha256:… | --image <ref> | --container <name>) [--network devnet|mainnet | --rpc <url>] [--max-age <days>] [--no-bind]");
+  console.error("Usage: oath audit --signer <pubkey[,pubkey]> [--file pods.json|-] [--skip-namespaces a,b] [--network …]\n       oath verify --signer <pubkey[,pubkey]> (--digest sha256:… | --image <ref> | --container <name>) [--network devnet|mainnet | --rpc <url>] [--max-age <days>] [--no-bind]");
   process.exit(2);
 }

@@ -69,8 +69,23 @@ kubectl run t --image=nginx        # → denied: no pipeline build anchored by t
 - **Підмінює тег на перевірений digest** (`app:latest` → `app@sha256:…`), тож кубелет витягне саме те, що перевірено; тег між перевіркою і pull змінити не вдасться.
 - **Fail closed:** недоступний реєстр, RPC чи сам webhook = Pod не проходить (`failurePolicy: Fail`). Виняток: `kube-system`, `kube-public`, `kube-node-lease` і namespace `oath-system` (щоб не заблокувати кластер).
 - `OATH_MODE=audit` дозволяє все, але повертає попередження: зручно для першого впровадження.
+- `OATH_FAILURE_POLICY=Ignore deploy/install.sh` міняє `failurePolicy` на `Ignore` (доступність важливіша за блокування; тоді користуйся `oath audit`). Webhook працює у 2 репліках із PodDisruptionBudget.
 - Приватні реєстри: `OATH_REGISTRY_AUTH='{"ghcr.io":{"username":"u","password":"token"}}'`.
 - Перевірено в реальному кластері (kind): `test/e2e-kind.sh` (допуск, pin, відмова, блокування Deployment, fail-closed при вимкненому webhook).
+
+## Pod-и, що вже працюють
+Webhook перевіряє лише нові Pod-и. Для вже запущених:
+```bash
+oath audit --signer <pubkey> --network mainnet [--skip-namespaces kube-system,…] [--file pods.json]
+```
+Бере всі контейнери поточного kube-контексту (`kubectl get pods -A -o json`, реальні digest з `imageID`), звіряє із записами, виходить з кодом 1, якщо є непідтверджені. Перевірено в kind: pod-и, створені до webhook, знаходяться (`alpine` VERIFIED, `nginx` NOT VERIFIED).
+
+## Атестація збірки (SLSA provenance)
+Запис у Solana доводить «підписант зафіксував digest», а не «збірка була чесною». Тому CI додатково випускає атестацію походження збірки через GitHub/Sigstore (keyless, без довгоживучого ключа) і публікує її поруч з образом:
+```bash
+gh attestation verify oci://ghcr.io/<owner>/<repo>@sha256:<digest> --repo <owner>/<repo>
+```
+`oath verify` її поки не перевіряє: це окремий шар, який ти запускаєш сам.
 
 ## Мейннет
 Усе працює однаково: `--network mainnet` (CLI), `OATH_NETWORK=mainnet` (webhook), `?net=mainnet` або випадайка (сторінка), для запису в CI вхід `rpc` action'у (або змінна репозиторію `SOLANA_RPC`). Запис коштує приблизно 0,000005 SOL комісії. Сторінка-верифікатор для мейннету ходить у `solana-rpc.publicnode.com`, бо `api.mainnet-beta.solana.com` повертає 403 на всі браузерні запити (заголовок `Origin`); CLI й webhook це не зачіпає. Публічний RPC `api.mainnet-beta.solana.com` має ліміти, для продакшену візьми власний (Helius, QuickNode тощо) і передай через `--rpc` / `SOLANA_RPC`.
@@ -97,7 +112,7 @@ Oath доводить походження, а не безпеку. Щоб не 
 ## Обмеження (скажи сам, перш ніж запитають)
 - **Ключ CI.** Хто вкраде `SOLANA_SECRET_KEY`, може записати фальшивий digest. Ми зменшуємо шкоду (ротація, відкликання, `--max-age`, привʼязка до образу), але не усуваємо її: ключ лежить у секретах CI. Апаратні ключі й keyless-підпис (Sigstore/OIDC) у планах. Зараз не реалізовано.
 - **Записи без підтвердження походження комміту.** Блокчейн доводить, що підписант зафіксував digest у такий час, а не що збірка була чесною. Для цього потрібні SLSA-атестації збірки.
-- **Мережа.** За замовчуванням devnet (безкоштовно, але без гарантій зберігання). Мейннет підтримується, але на живому мейннеті ми CI не проганяли: потрібен баланс SOL.
+- **Мережа.** За замовчуванням devnet (безкоштовно, але без гарантій зберігання). Мейннет підтримується; для CI є ручний workflow `anchor-mainnet` (секрет `SOLANA_SECRET_KEY_MAINNET`, потрібні копійки SOL). Статус перевірки на живому мейннеті дивись у розділі про тести.
 - **Реєстр і RPC як залежності.** Webhook fail-closed, тож при недоступності RPC чи реєстру нові Pod не створюються (працюючі не чіпаємо). Для продакшену потрібен надійний RPC.
 - **Pod-и, створені до встановлення webhook,** не перевіряються; перевіряються лише нові (CREATE). Для наявних скористайся `oath verify --container`.
 - Аналог без блокчейну: Sigstore/Rekor. Наша відмінність: публічний журнал, що не залежить від одного оператора.

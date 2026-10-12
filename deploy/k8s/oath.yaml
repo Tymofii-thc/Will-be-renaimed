@@ -49,6 +49,16 @@ spec:
         - name: tls
           secret: { secretName: oath-webhook-tls }
 ---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: oath-webhook
+  namespace: oath-system
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels: { app: oath-webhook }
+---
 apiVersion: v1
 kind: Service
 metadata:
@@ -67,7 +77,7 @@ webhooks:
     admissionReviewVersions: ["v1"]
     sideEffects: None
     timeoutSeconds: 15
-    failurePolicy: Fail                   # if the webhook is down, pods are NOT admitted (fail closed)
+    failurePolicy: __FAILURE_POLICY__     # Fail = webhook down means pods are NOT admitted (secure default); Ignore = availability over enforcement
     reinvocationPolicy: Never
     namespaceSelector:
       matchExpressions:

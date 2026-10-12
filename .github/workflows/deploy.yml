@@ -8,6 +8,8 @@ on:
 permissions:
   contents: read
   packages: write
+  id-token: write       # keyless Sigstore signing of the build attestation
+  attestations: write
 
 jobs:
   build:
@@ -33,6 +35,15 @@ jobs:
           context: ./app
           push: true
           tags: ${{ env.IMAGE }}:latest
+
+      # SLSA build provenance: a Sigstore-signed statement (via GitHub OIDC, no long-lived key) that THIS workflow built THIS digest.
+      # Verify: gh attestation verify oci://${IMAGE}@<digest> --repo <owner>/<repo>
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: ${{ env.IMAGE }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
 
       # Optional gate: set repo variable OATH_SCAN=true to refuse to anchor (and therefore deploy) images with fixable CRITICAL vulnerabilities.
       - name: Vulnerability scan (Trivy)
