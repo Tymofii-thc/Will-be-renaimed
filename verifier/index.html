@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Proof of Deploy</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --card: #ffffff; --ink: #14181f; --muted: #5d6675; --line: #dde1e8;
+    --ok: #0f7b3f; --ok-bg: #e3f5ea; --bad: #b3261e; --bad-bg: #fbe6e4; --accent: #3b4cca;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0f1218; --card: #171b23; --ink: #e8ebf1; --muted: #98a1b1; --line: #2a303b;
+      --ok: #5fd68f; --ok-bg: #12301f; --bad: #ff8a80; --bad-bg: #3a1815; --accent: #8c99ff;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+    font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 760px; margin: 0 auto; padding: 32px 16px 64px; }
+  h1 { font-size: 28px; margin: 0 0 4px; letter-spacing: -0.02em; }
+  .sub { color: var(--muted); margin: 0 0 24px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 20px; }
+  label { display: block; font-size: 13px; font-weight: 600; color: var(--muted); margin: 14px 0 6px; }
+  label:first-of-type { margin-top: 0; }
+  input { width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px;
+    background: var(--bg); color: var(--ink); font: 14px ui-monospace, SFMono-Regular, Menlo, monospace; }
+  input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  button { margin-top: 16px; padding: 10px 18px; border: 0; border-radius: 8px; cursor: pointer;
+    background: var(--accent); color: #fff; font: 600 15px system-ui, sans-serif; }
+  button:disabled { opacity: .6; cursor: wait; }
+  #result { margin-top: 20px; display: none; border-radius: 12px; padding: 18px 20px; }
+  #result.ok { display: block; background: var(--ok-bg); color: var(--ok); border: 1px solid var(--ok); }
+  #result.bad { display: block; background: var(--bad-bg); color: var(--bad); border: 1px solid var(--bad); }
+  #result h2 { margin: 0 0 6px; font-size: 20px; }
+  #result p { margin: 4px 0; color: var(--ink); font-size: 14px; word-break: break-all; }
+  #result a { color: inherit; }
+  h3 { margin: 28px 0 10px; font-size: 15px; color: var(--muted); font-weight: 600; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  td.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; word-break: break-all; }
+  tr.match td { background: var(--ok-bg); }
+  .table-wrap { overflow-x: auto; }
+  .hint { font-size: 13px; color: var(--muted); margin-top: 8px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Proof of Deploy</h1>
+  <p class="sub">Does the image running in prod match what the pipeline built? Check it against Solana devnet.</p>
+
+  <div class="card">
+    <label for="key">CI signer public key</label>
+    <input id="key" placeholder="Public key printed by scripts/keygen.mjs" autocomplete="off" spellcheck="false">
+    <label for="digest">Digest of the running image</label>
+    <input id="digest" placeholder="sha256:… or ghcr.io/you/app@sha256:…" autocomplete="off" spellcheck="false">
+    <p class="hint">Get it with <code>./scripts/running-digest.sh &lt;container&gt;</code></p>
+    <button id="go">Verify</button>
+    <div id="result" role="status" aria-live="polite"></div>
+  </div>
+
+  <h3>Builds anchored by this signer</h3>
+  <div class="table-wrap">
+    <table id="list" hidden>
+      <thead><tr><th>Time</th><th>Commit</th><th>Digest</th><th>Tx</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+  <p class="hint" id="empty">Nothing loaded yet.</p>
+</main>
+
+<script>
+const RPC = "https://api.devnet.solana.com";
+const $ = (id) => document.getElementById(id);
+
+// Pre-fill from ?key=…&digest=… so a demo link can be shared.
+try {
+  const q = new URLSearchParams(location.search);
+  if (q.get("key")) $("key").value = q.get("key");
+  if (q.get("digest")) $("digest").value = q.get("digest");
+} catch (e) {}
+
+async function rpc(method, params) {
+  const r = await fetch(RPC, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
+  });
+  if (!r.ok) throw new Error("RPC HTTP " + r.status);
+  const j = await r.json();
+  if (j.error) throw new Error(j.error.message);
+  return j.result;
+}
+
+// The RPC returns memo as "[<len>] <text>"; several memos in one tx are joined with "; ".
+function parseMemo(memo) {
+  if (!memo) return [];
+  return memo.split("; ")
+    .map((m) => m.replace(/^\[\d+\]\s*/, ""))
+    .filter((m) => m.startsWith("pod1|"))
+    .map((m) => {
+      const [, image, commit, digest, ts] = m.split("|");
+      return { image, commit, digest, ts };
+    });
+}
+
+function extractDigest(s) {
+  const m = (s || "").match(/sha256:[0-9a-fA-F]{64}/);
+  return m ? m[0].toLowerCase() : null;
+}
+
+function cell(tr, text, cls) {
+  const td = document.createElement("td");
+  if (cls) td.className = cls;
+  td.textContent = text;
+  tr.appendChild(td);
+  return td;
+}
+
+async function verify() {
+  const key = $("key").value.trim();
+  const want = extractDigest($("digest").value);
+  const box = $("result");
+  box.className = ""; box.replaceChildren();
+
+  if (!key) return show("bad", "Missing key", "Enter the CI signer public key.");
+  if (!want) return show("bad", "Bad digest", "Could not find a sha256:<64 hex> digest in the input.");
+
+  const btn = $("go");
+  btn.disabled = true; btn.textContent = "Checking…";
+  try {
+    const sigs = await rpc("getSignaturesForAddress", [key, { limit: 100 }]);
+    const builds = [];
+    for (const s of sigs) {
+      if (s.err) continue;
+      for (const rec of parseMemo(s.memo)) builds.push({ ...rec, sig: s.signature, time: s.blockTime });
+    }
+    renderList(builds, want);
+    const hit = builds.find((b) => b.digest === want);
+    if (hit) {
+      const when = hit.time ? new Date(hit.time * 1000).toLocaleString() : hit.ts;
+      show("ok", "✔ Verified", null, [
+        `This image was built by the pipeline from commit ${hit.commit}.`,
+        `Anchored on Solana devnet: ${when}`,
+      ], hit.sig);
+    } else {
+      show("bad", "✘ NOT VERIFIED", null, [
+        "No pipeline build with this digest was ever anchored by this signer.",
+        "The image in prod may have been replaced outside the pipeline.",
+      ]);
+    }
+  } catch (e) {
+    show("bad", "Lookup failed", e.message);
+  } finally {
+    btn.disabled = false; btn.textContent = "Verify";
+  }
+}
+
+function show(kind, title, single, lines, sig) {
+  const box = $("result");
+  box.className = kind;
+  const h = document.createElement("h2"); h.textContent = title; box.appendChild(h);
+  for (const l of (lines || [single])) {
+    const p = document.createElement("p"); p.textContent = l; box.appendChild(p);
+  }
+  if (sig) {
+    const p = document.createElement("p");
+    const a = document.createElement("a");
+    a.href = `https://explorer.solana.com/tx/${encodeURIComponent(sig)}?cluster=devnet`;
+    a.target = "_blank"; a.rel = "noopener"; a.textContent = "View transaction on Solana Explorer";
+    p.appendChild(a); box.appendChild(p);
+  }
+}
+
+function renderList(builds, want) {
+  const tb = document.querySelector("#list tbody");
+  tb.replaceChildren();
+  $("list").hidden = builds.length === 0;
+  $("empty").hidden = builds.length > 0;
+  if (!builds.length) $("empty").textContent = "No pod1 records found for this key.";
+  for (const b of builds) {
+    const tr = document.createElement("tr");
+    if (b.digest === want) tr.className = "match";
+    cell(tr, b.time ? new Date(b.time * 1000).toLocaleString() : b.ts);
+    cell(tr, b.commit, "mono");
+    cell(tr, b.digest, "mono");
+    const td = document.createElement("td");
+    const a = document.createElement("a");
+    a.href = `https://explorer.solana.com/tx/${encodeURIComponent(b.sig)}?cluster=devnet`;
+    a.target = "_blank"; a.rel = "noopener"; a.textContent = b.sig.slice(0, 8) + "…";
+    td.appendChild(a); tr.appendChild(td);
+    tb.appendChild(tr);
+  }
+}
+
+$("go").addEventListener("click", verify);
+if ($("key").value && $("digest").value) verify();
+</script>
+</body>
+</html>

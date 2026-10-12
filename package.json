@@ -1,0 +1,19 @@
+{
+  "name": "proof-of-deploy",
+  "version": "0.1.0",
+  "description": "Anchor Docker image digests to Solana devnet from CI and verify what runs in prod",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "@solana/web3.js": "^1.99.0"
+  },
+  "bin": {
+    "pod": "bin/pod.mjs"
+  }
+}

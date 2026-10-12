@@ -1,0 +1,40 @@
+name: Proof of Deploy — anchor image digest
+description: Records the commit and image digest of a build on Solana (Memo program) so prod can later be verified against it.
+author: proof-of-deploy
+
+inputs:
+  image:
+    description: Image name without tag, e.g. ghcr.io/owner/app
+    required: true
+  digest:
+    description: Image digest, e.g. the `digest` output of docker/build-push-action
+    required: true
+  secret-key:
+    description: JSON array of the CI signer's Solana secret key (store as a repo secret)
+    required: true
+  rpc:
+    description: Solana RPC URL (defaults to devnet; use a mainnet RPC for production)
+    required: false
+    default: https://api.devnet.solana.com
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 22
+
+    - name: Install dependencies
+      shell: bash
+      run: npm ci --omit=dev --prefix "${{ github.action_path }}"
+
+    - name: Anchor digest
+      shell: bash
+      env:
+        SOLANA_SECRET_KEY: ${{ inputs.secret-key }}
+        SOLANA_RPC: ${{ inputs.rpc }}
+      run: |
+        node "${{ github.action_path }}/scripts/anchor.mjs" \
+          --image "${{ inputs.image }}" \
+          --digest "${{ inputs.digest }}" \
+          --commit "${{ github.sha }}"
