@@ -1,9 +1,9 @@
 #!/usr/bin/env node
-// pod — Proof of Deploy CLI
+// oath — Proof of Deploy CLI
 //
-//   pod verify --signer <pubkey> --digest sha256:<hex>
-//   pod verify --signer <pubkey> --image ghcr.io/me/app:latest      (digest read from local docker)
-//   pod verify --signer <pubkey> --container prod                   (digest of the RUNNING image)
+//   oath verify --signer <pubkey> --digest sha256:<hex>
+//   oath verify --signer <pubkey> --image ghcr.io/me/app:latest      (digest read from local docker)
+//   oath verify --signer <pubkey> --container prod                   (digest of the RUNNING image)
 //
 // Exit codes: 0 = verified, 1 = NOT verified, 2 = usage / network error.
 // Put it right before your deploy step: if it exits non-zero, the deploy stops.
@@ -77,11 +77,11 @@ function resolveDigest() {
 }
 
 async function verify() {
-  const signer = arg("signer") || process.env.POD_SIGNER;
+  const signer = arg("signer") || process.env.OATH_SIGNER || process.env.POD_SIGNER;
   const rpcUrl = arg("rpc") || process.env.SOLANA_RPC || DEFAULT_RPC;
   const limit = Number(arg("limit") || 100);
 
-  if (!signer) fail(2, "Missing --signer <public key of the CI signer> (or POD_SIGNER).");
+  if (!signer) fail(2, "Missing --signer <public key of the CI signer> (or OATH_SIGNER).");
   const want = resolveDigest();
   if (!want) fail(2, "Could not determine a sha256 digest. Pass --digest, --image or --container.");
 
@@ -116,6 +116,6 @@ const cmd = process.argv[2];
 if (cmd === "verify") {
   await verify();
 } else {
-  console.error("Usage: pod verify --signer <pubkey> (--digest sha256:… | --image <ref> | --container <name>) [--rpc <url>]");
+  console.error("Usage: oath verify --signer <pubkey> (--digest sha256:… | --image <ref> | --container <name>) [--rpc <url>]");
   process.exit(2);
 }

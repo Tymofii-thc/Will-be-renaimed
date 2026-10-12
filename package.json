@@ -1,5 +1,5 @@
 {
-  "name": "proof-of-deploy",
+  "name": "oath",
   "version": "0.1.0",
   "description": "Anchor Docker image digests to Solana devnet from CI and verify what runs in prod",
   "main": "index.js",
@@ -14,6 +14,6 @@
     "@solana/web3.js": "^1.99.0"
   },
   "bin": {
-    "pod": "bin/pod.mjs"
+    "oath": "bin/oath.mjs"
   }
 }

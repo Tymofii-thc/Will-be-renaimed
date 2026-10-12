@@ -63,7 +63,7 @@ jobs:
       # The gate: if the image in the registry is not one the pipeline anchored
       # (e.g. someone pushed to :latest by hand), this exits 1 and the deploy stops.
       - name: Verify image against Solana
-        run: node bin/pod.mjs verify --signer "${{ vars.POD_SIGNER }}" --image "${IMAGE}:latest"
+        run: node bin/oath.mjs verify --signer "${{ vars.OATH_SIGNER }}" --image "${IMAGE}:latest"
 
       - name: Deploy
         run: echo "Image verified. Replace this step with your real deploy (kubectl / ssh / compose)."

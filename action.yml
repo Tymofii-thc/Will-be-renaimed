@@ -1,6 +1,6 @@
-name: Proof of Deploy — anchor image digest
+name: Oath — anchor image digest
 description: Records the commit and image digest of a build on Solana (Memo program) so prod can later be verified against it.
-author: proof-of-deploy
+author: oath
 
 inputs:
   image:
