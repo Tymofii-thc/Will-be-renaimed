@@ -34,8 +34,10 @@ node scripts/keygen.mjs      # друкує public + secret key і пробує 
 **3. Перевірка перед деплоєм:**
 ```yaml
 - run: docker pull ghcr.io/${{ github.repository }}:latest
-- run: npx --yes github:Tymofii-thc/Will-be-renaimed verify --signer "${{ vars.POD_SIGNER }}" --image ghcr.io/${{ github.repository }}:latest
+- run: npx --yes --allow-git=all github:Tymofii-thc/Will-be-renaimed verify --signer "${{ vars.POD_SIGNER }}" --image ghcr.io/${{ github.repository }}:latest
 ```
+`--allow-git=all` потрібен для npm 12+, який за замовчуванням блокує пакети з git (`EALLOWGIT`); на старіших npm прапорець нічого не змінює. Альтернатива без npx: `actions/checkout` цього репозиторію і `node bin/pod.mjs verify …` (залежностей нема).
+
 Цей репозиторій уже використовує сам себе так: див. `.github/workflows/deploy.yml`.
 
 ## CLI
@@ -46,7 +48,7 @@ node bin/pod.mjs verify --signer <pubkey> --container prod      # образ, щ
 ```
 Коди виходу: `0` перевірено, `1` не перевірено, `2` помилка (мережа, аргументи). Для мейннету додай `--rpc <url>` або змінну `SOLANA_RPC` (і те саме для кроку 2 через вхід `rpc`).
 
-`verifier/index.html` це та сама перевірка у браузері, для демо й для людей, які не лізуть у термінал.
+`verifier/index.html` це та сама перевірка у браузері, для демо й для людей, які не лізуть у термінал. Живий: https://tymofii-thc.github.io/Will-be-renaimed/
 
 ## Сценарій демо (3 хвилини)
 1. **Проблема** (20 с): «Як довести, що в проді те, що зібрав пайплайн?»
