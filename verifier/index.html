@@ -48,11 +48,13 @@
 <body>
 <main>
   <h1>Oath</h1>
-  <p class="sub">Does the image running in prod match what the pipeline built? Check it against Solana devnet.</p>
+  <p class="sub">Does the image running in prod match what the pipeline built? Check it against Solana (devnet or mainnet).</p>
 
   <div class="card">
     <label for="key">CI signer public key</label>
-    <input id="key" placeholder="Public key printed by scripts/keygen.mjs" autocomplete="off" spellcheck="false">
+    <input id="key" placeholder="Public key(s) of the CI signer; separate several with commas" autocomplete="off" spellcheck="false">
+    <label for="net">Network</label>
+    <select id="net"><option value="devnet">devnet</option><option value="mainnet">mainnet</option></select>
     <label for="digest">Digest of the running image</label>
     <input id="digest" placeholder="sha256:… or ghcr.io/you/app@sha256:…" autocomplete="off" spellcheck="false">
     <p class="hint">Get it with <code>./scripts/running-digest.sh &lt;container&gt;</code></p>
@@ -71,7 +73,9 @@
 </main>
 
 <script>
-const RPC = "https://api.devnet.solana.com";
+const RPCS = { devnet: "https://api.devnet.solana.com", mainnet: "https://api.mainnet-beta.solana.com" };
+const net = () => ($("net") && $("net").value) || "devnet";
+const cluster = () => (net() === "mainnet" ? "mainnet-beta" : "devnet");
 const $ = (id) => document.getElementById(id);
 
 // Pre-fill from ?key=…&digest=… so a demo link can be shared.
@@ -79,10 +83,11 @@ try {
   const q = new URLSearchParams(location.search);
   if (q.get("key")) $("key").value = q.get("key");
   if (q.get("digest")) $("digest").value = q.get("digest");
+  if (q.get("net") && RPCS[q.get("net")]) $("net").value = q.get("net");
 } catch (e) {}
 
 async function rpc(method, params) {
-  const r = await fetch(RPC, {
+  const r = await fetch(RPCS[net()], {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
@@ -119,22 +124,24 @@ function cell(tr, text, cls) {
 }
 
 async function verify() {
-  const key = $("key").value.trim();
+  const keys = $("key").value.split(",").map((k) => k.trim()).filter(Boolean);
   const want = extractDigest($("digest").value);
   const box = $("result");
   box.className = ""; box.replaceChildren();
 
-  if (!key) return show("bad", "Missing key", "Enter the CI signer public key.");
+  if (!keys.length) return show("bad", "Missing key", "Enter the CI signer public key.");
   if (!want) return show("bad", "Bad digest", "Could not find a sha256:<64 hex> digest in the input.");
 
   const btn = $("go");
   btn.disabled = true; btn.textContent = "Checking…";
   try {
-    const sigs = await rpc("getSignaturesForAddress", [key, { limit: 100 }]);
     const builds = [];
-    for (const s of sigs) {
-      if (s.err) continue;
-      for (const rec of parseMemo(s.memo)) builds.push({ ...rec, sig: s.signature, time: s.blockTime });
+    for (const key of keys) {
+      const sigs = await rpc("getSignaturesForAddress", [key, { limit: 1000 }]);
+      for (const s of sigs) {
+        if (s.err) continue;
+        for (const rec of parseMemo(s.memo)) builds.push({ ...rec, sig: s.signature, time: s.blockTime });
+      }
     }
     renderList(builds, want);
     const hit = builds.find((b) => b.digest === want);
@@ -142,7 +149,7 @@ async function verify() {
       const when = hit.time ? new Date(hit.time * 1000).toLocaleString() : hit.ts;
       show("ok", "✔ Verified", null, [
         `This image was built by the pipeline from commit ${hit.commit}.`,
-        `Anchored on Solana devnet: ${when}`,
+        `Anchored on Solana ${net()}: ${when}`,
       ], hit.sig);
     } else {
       show("bad", "✘ NOT VERIFIED", null, [
@@ -167,7 +174,7 @@ function show(kind, title, single, lines, sig) {
   if (sig) {
     const p = document.createElement("p");
     const a = document.createElement("a");
-    a.href = `https://explorer.solana.com/tx/${encodeURIComponent(sig)}?cluster=devnet`;
+    a.href = `https://explorer.solana.com/tx/${encodeURIComponent(sig)}?cluster=${cluster()}`;
     a.target = "_blank"; a.rel = "noopener"; a.textContent = "View transaction on Solana Explorer";
     p.appendChild(a); box.appendChild(p);
   }
@@ -178,7 +185,7 @@ function renderList(builds, want) {
   tb.replaceChildren();
   $("list").hidden = builds.length === 0;
   $("empty").hidden = builds.length > 0;
-  if (!builds.length) $("empty").textContent = "No pod1 records found for this key.";
+  if (!builds.length) $("empty").textContent = "No pod1 records found for this key on this network.";
   for (const b of builds) {
     const tr = document.createElement("tr");
     if (b.digest === want) tr.className = "match";
@@ -187,7 +194,7 @@ function renderList(builds, want) {
     cell(tr, b.digest, "mono");
     const td = document.createElement("td");
     const a = document.createElement("a");
-    a.href = `https://explorer.solana.com/tx/${encodeURIComponent(b.sig)}?cluster=devnet`;
+    a.href = `https://explorer.solana.com/tx/${encodeURIComponent(b.sig)}?cluster=${cluster()}`;
     a.target = "_blank"; a.rel = "noopener"; a.textContent = b.sig.slice(0, 8) + "…";
     td.appendChild(a); tr.appendChild(td);
     tb.appendChild(tr);

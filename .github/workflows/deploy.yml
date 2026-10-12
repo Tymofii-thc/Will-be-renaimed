@@ -34,6 +34,19 @@ jobs:
           push: true
           tags: ${{ env.IMAGE }}:latest
 
+      # Optional gate: set repo variable OATH_SCAN=true to refuse to anchor (and therefore deploy) images with fixable CRITICAL vulnerabilities.
+      - name: Vulnerability scan (Trivy)
+        if: vars.OATH_SCAN == 'true'
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ${{ env.IMAGE }}@${{ steps.build.outputs.digest }}
+          severity: CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+        env:
+          TRIVY_USERNAME: ${{ github.actor }}
+          TRIVY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+
       # Dogfooding: this repo uses its own action.
       - name: Anchor digest on Solana
         uses: ./
@@ -41,6 +54,7 @@ jobs:
           image: ${{ env.IMAGE }}
           digest: ${{ steps.build.outputs.digest }}
           secret-key: ${{ secrets.SOLANA_SECRET_KEY }}
+          rpc: ${{ vars.SOLANA_RPC || 'https://api.devnet.solana.com' }}
 
   deploy:
     needs: build
@@ -63,7 +77,7 @@ jobs:
       # The gate: if the image in the registry is not one the pipeline anchored
       # (e.g. someone pushed to :latest by hand), this exits 1 and the deploy stops.
       - name: Verify image against Solana
-        run: node bin/oath.mjs verify --signer "${{ vars.OATH_SIGNER }}" --image "${IMAGE}:latest"
+        run: node bin/oath.mjs verify --signer "${{ vars.OATH_SIGNER }}" --image "${IMAGE}:latest" ${{ vars.SOLANA_RPC && format('--rpc {0}', vars.SOLANA_RPC) || '' }}
 
       - name: Deploy
         run: echo "Image verified. Replace this step with your real deploy (kubectl / ssh / compose)."

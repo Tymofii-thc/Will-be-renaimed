@@ -1,0 +1,41 @@
+name: release-webhook
+
+# Builds the oath admission-webhook image and anchors its own digest on Solana (oath protects itself).
+on:
+  push:
+    branches: [main]
+    paths: [Dockerfile, lib/**, bin/**, package.json, .github/workflows/release-webhook.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Image name (GHCR requires lowercase)
+        run: echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}-webhook" >> "$GITHUB_ENV"
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - run: npm test
+      - name: Build and push
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ env.IMAGE }}:latest
+      - name: Anchor digest on Solana
+        uses: ./
+        with:
+          image: ${{ env.IMAGE }}
+          digest: ${{ steps.build.outputs.digest }}
+          secret-key: ${{ secrets.SOLANA_SECRET_KEY }}
+          rpc: ${{ vars.SOLANA_RPC || 'https://api.devnet.solana.com' }}

@@ -4,7 +4,7 @@
 set -euo pipefail
 : "${OATH_SIGNER:?set OATH_SIGNER to the CI signer public key (comma-separate several)}"
 OATH_NETWORK="${OATH_NETWORK:-devnet}"
-OATH_IMAGE="${OATH_IMAGE:-ghcr.io/tymofii-thc/oath:latest}"
+OATH_IMAGE="${OATH_IMAGE:-ghcr.io/tymofii-thc/oath-webhook:latest}"
 here="$(cd "$(dirname "$0")" && pwd)"
 tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' EXIT
 svc=oath-webhook; ns=oath-system
