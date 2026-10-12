@@ -37,15 +37,10 @@ jobs:
       # Optional gate: set repo variable OATH_SCAN=true to refuse to anchor (and therefore deploy) images with fixable CRITICAL vulnerabilities.
       - name: Vulnerability scan (Trivy)
         if: vars.OATH_SCAN == 'true'
-        uses: aquasecurity/trivy-action@v0.28.0
-        with:
-          image-ref: ${{ env.IMAGE }}@${{ steps.build.outputs.digest }}
-          severity: CRITICAL
-          ignore-unfixed: true
-          exit-code: "1"
-        env:
-          TRIVY_USERNAME: ${{ github.actor }}
-          TRIVY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          docker run --rm -e TRIVY_USERNAME="${{ github.actor }}" -e TRIVY_PASSWORD="${{ secrets.GITHUB_TOKEN }}" \
+            aquasec/trivy:0.57.1 image --severity CRITICAL --ignore-unfixed --exit-code 1 \
+            "${IMAGE}@${{ steps.build.outputs.digest }}"
 
       # Dogfooding: this repo uses its own action.
       - name: Anchor digest on Solana

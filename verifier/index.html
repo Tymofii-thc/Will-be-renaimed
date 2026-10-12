@@ -3,83 +3,187 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Oath — Proof of Deploy</title>
+<title>Oath — is this software really what its makers built?</title>
 <style>
   :root {
     --bg: #f6f7f9; --card: #ffffff; --ink: #14181f; --muted: #5d6675; --line: #dde1e8;
     --ok: #0f7b3f; --ok-bg: #e3f5ea; --bad: #b3261e; --bad-bg: #fbe6e4; --accent: #3b4cca;
   }
   @media (prefers-color-scheme: dark) {
-    :root:not([data-theme="light"]) {
+    :root {
       --bg: #0f1218; --card: #171b23; --ink: #e8ebf1; --muted: #98a1b1; --line: #2a303b;
       --ok: #5fd68f; --ok-bg: #12301f; --bad: #ff8a80; --bad-bg: #3a1815; --accent: #8c99ff;
     }
   }
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--bg); color: var(--ink);
-    font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
-  main { max-width: 760px; margin: 0 auto; padding: 32px 16px 64px; }
-  h1 { font-size: 28px; margin: 0 0 4px; letter-spacing: -0.02em; }
-  .sub { color: var(--muted); margin: 0 0 24px; }
-  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 20px; }
-  label { display: block; font-size: 13px; font-weight: 600; color: var(--muted); margin: 14px 0 6px; }
-  label:first-of-type { margin-top: 0; }
-  input { width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px;
-    background: var(--bg); color: var(--ink); font: 14px ui-monospace, SFMono-Regular, Menlo, monospace; }
-  input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
-  button { margin-top: 16px; padding: 10px 18px; border: 0; border-radius: 8px; cursor: pointer;
-    background: var(--accent); color: #fff; font: 600 15px system-ui, sans-serif; }
+    font: 17px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 780px; margin: 0 auto; padding: 24px 16px 72px; }
+  .top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 28px; }
+  .brand { font-weight: 800; font-size: 20px; letter-spacing: -0.02em; }
+  .lang button { margin: 0 0 0 6px; padding: 4px 10px; font-size: 13px; background: transparent;
+    color: var(--muted); border: 1px solid var(--line); }
+  .lang button.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+  h1 { font-size: clamp(28px, 6vw, 40px); line-height: 1.15; margin: 0 0 12px; letter-spacing: -0.03em; }
+  .lead { font-size: 19px; color: var(--muted); margin: 0 0 28px; }
+  .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 0 0 32px; }
+  .step { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px; }
+  .step b { display: block; font-size: 26px; }
+  .step span { font-size: 14px; color: var(--muted); }
+  @media (max-width: 560px) { .steps { grid-template-columns: 1fr; } }
+  h2 { font-size: 22px; margin: 0 0 6px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 22px; margin-bottom: 20px; }
+  .try { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 14px; }
+  @media (max-width: 560px) { .try { grid-template-columns: 1fr; } }
+  button { padding: 14px 16px; border: 0; border-radius: 10px; cursor: pointer;
+    background: var(--accent); color: #fff; font: 600 16px system-ui, sans-serif; }
+  button.good { background: var(--ok); color: #fff; }
+  button.evil { background: var(--bad); color: #fff; }
   button:disabled { opacity: .6; cursor: wait; }
-  #result { margin-top: 20px; display: none; border-radius: 12px; padding: 18px 20px; }
-  #result.ok { display: block; background: var(--ok-bg); color: var(--ok); border: 1px solid var(--ok); }
-  #result.bad { display: block; background: var(--bad-bg); color: var(--bad); border: 1px solid var(--bad); }
-  #result h2 { margin: 0 0 6px; font-size: 20px; }
-  #result p { margin: 4px 0; color: var(--ink); font-size: 14px; word-break: break-all; }
-  #result a { color: inherit; }
-  h3 { margin: 28px 0 10px; font-size: 15px; color: var(--muted); font-weight: 600; }
+  #result { margin-top: 18px; display: none; border-radius: 12px; padding: 18px 20px; }
+  #result.ok { display: block; background: var(--ok-bg); color: var(--ok); border: 2px solid var(--ok); }
+  #result.bad { display: block; background: var(--bad-bg); color: var(--bad); border: 2px solid var(--bad); }
+  #result .big { font-size: 24px; font-weight: 800; margin: 0 0 6px; }
+  #result p { margin: 6px 0; color: var(--ink); font-size: 16px; }
+  #result a { color: inherit; font-weight: 600; }
+  details { margin-top: 6px; }
+  summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
+  label { display: block; font-size: 14px; font-weight: 600; margin: 16px 0 4px; }
+  .help { font-size: 13px; color: var(--muted); margin: 0 0 6px; }
+  input, select { width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px;
+    background: var(--bg); color: var(--ink); font: 14px ui-monospace, SFMono-Regular, Menlo, monospace; }
+  input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  #go { margin-top: 16px; }
   table { width: 100%; border-collapse: collapse; font-size: 13px; }
   th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
   td.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; word-break: break-all; }
   tr.match td { background: var(--ok-bg); }
   .table-wrap { overflow-x: auto; }
-  .hint { font-size: 13px; color: var(--muted); margin-top: 8px; }
+  .hint { font-size: 14px; color: var(--muted); }
+  footer { color: var(--muted); font-size: 14px; margin-top: 28px; }
+  footer a { color: var(--accent); }
 </style>
 </head>
 <body>
 <main>
-  <h1>Oath</h1>
-  <p class="sub">Does the image running in prod match what the pipeline built? Check it against Solana (devnet or mainnet).</p>
+  <div class="top">
+    <div class="brand">🛡️ Oath</div>
+    <div class="lang"><button id="l-en" type="button">EN</button><button id="l-uk" type="button">UA</button></div>
+  </div>
+
+  <h1 data-i="h1"></h1>
+  <p class="lead" data-i="lead"></p>
+
+  <div class="steps">
+    <div class="step"><b>1 🔨</b><span data-i="s1"></span></div>
+    <div class="step"><b>2 🧾</b><span data-i="s2"></span></div>
+    <div class="step"><b>3 ✅</b><span data-i="s3"></span></div>
+  </div>
 
   <div class="card">
-    <label for="key">CI signer public key</label>
-    <input id="key" placeholder="Public key(s) of the CI signer; separate several with commas" autocomplete="off" spellcheck="false">
-    <label for="net">Network</label>
-    <select id="net"><option value="devnet">devnet</option><option value="mainnet">mainnet</option></select>
-    <label for="digest">Digest of the running image</label>
-    <input id="digest" placeholder="sha256:… or ghcr.io/you/app@sha256:…" autocomplete="off" spellcheck="false">
-    <p class="hint">Get it with <code>./scripts/running-digest.sh &lt;container&gt;</code></p>
-    <button id="go">Verify</button>
+    <h2 data-i="tryh"></h2>
+    <div class="hint" data-i="tryp"></div>
+    <div class="try">
+      <button id="demo-good" class="good" type="button" data-i="bgood"></button>
+      <button id="demo-evil" class="evil" type="button" data-i="bevil"></button>
+    </div>
     <div id="result" role="status" aria-live="polite"></div>
   </div>
 
-  <h3>Builds anchored by this signer</h3>
-  <div class="table-wrap">
-    <table id="list" hidden>
-      <thead><tr><th>Time</th><th>Commit</th><th>Digest</th><th>Tx</th></tr></thead>
-      <tbody></tbody>
-    </table>
+  <div class="card">
+    <details id="own">
+      <summary data-i="own"></summary>
+      <label for="key" data-i="lkey"></label>
+      <div class="help" data-i="hkey"></div>
+      <input id="key" autocomplete="off" spellcheck="false">
+      <label for="digest" data-i="ldig"></label>
+      <div class="help" data-i="hdig"></div>
+      <input id="digest" placeholder="sha256:…" autocomplete="off" spellcheck="false">
+      <label for="net" data-i="lnet"></label>
+      <select id="net"><option value="devnet">devnet (test)</option><option value="mainnet">mainnet</option></select>
+      <button id="go" type="button" data-i="check"></button>
+    </details>
   </div>
-  <p class="hint" id="empty">Nothing loaded yet.</p>
+
+  <div class="card">
+    <details>
+      <summary data-i="recs"></summary>
+      <div class="table-wrap">
+        <table id="list" hidden>
+          <thead><tr><th data-i="tt"></th><th data-i="tc"></th><th data-i="td"></th><th data-i="tx"></th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <p class="hint" id="empty" data-i="nothing"></p>
+    </details>
+  </div>
+
+  <footer><span data-i="foot"></span> <a href="https://github.com/Tymofii-thc/oath">GitHub</a></footer>
 </main>
 
 <script>
-const RPCS = { devnet: "https://api.devnet.solana.com", mainnet: "https://api.mainnet-beta.solana.com" };
-const net = () => ($("net") && $("net").value) || "devnet";
-const cluster = () => (net() === "mainnet" ? "mainnet-beta" : "devnet");
 const $ = (id) => document.getElementById(id);
+const RPCS = { devnet: "https://api.devnet.solana.com", mainnet: "https://api.mainnet-beta.solana.com" };
+const DEMO_KEY = "5D4W8x8UeqW3qVi9uzNzvJPWiJZQaRWVR9ru2ckFhoih";
+const DEMO_GOOD = "sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc";
+const DEMO_EVIL = "sha256:" + "1".repeat(64);
 
-// Pre-fill from ?key=…&digest=… so a demo link can be shared.
-try {
+const T = {
+  en: {
+    h1: "Is this software really what its makers built?",
+    lead: "Attackers sometimes swap a program for a look-alike after it was built, so you run something nobody approved. Oath gives every official build a tamper-proof receipt on a public blockchain, and checks it before anything runs.",
+    s1: "The official pipeline builds the program.", s2: "It writes a receipt (a fingerprint) to the Solana blockchain. Nobody can edit it later.",
+    s3: "Before running, we check the fingerprint against the receipts. No receipt = blocked.",
+    tryh: "Try it in one click", tryp: "Both buttons really query the Solana blockchain right now.",
+    bgood: "✔ Check the genuine program", bevil: "✘ Check a tampered program",
+    own: "Check your own program", lkey: "Who built it? (publisher key)", hkey: "The public key of the official pipeline. A prefilled example is used here.",
+    ldig: "Which program? (fingerprint)", hdig: "The sha256:… fingerprint of the image you want to check.", lnet: "Network", check: "Check",
+    recs: "See all receipts from this publisher", tt: "Time", tc: "Code version", td: "Fingerprint", tx: "Receipt",
+    nothing: "Nothing loaded yet. Run a check first.", foot: "Open source · Built for the Colosseum hackathon ·",
+    okT: "✔ Genuine", okA: (c) => `This program was built by the official pipeline from code version ${c}.`,
+    okB: (w, n) => `Receipt written on Solana ${n}: ${w}. It can't be changed or deleted.`, view: "View the receipt on Solana Explorer",
+    badT: "✘ Not recognised — do not run it", badA: "Nobody official built a program with this fingerprint.",
+    badB: "It may have been swapped or modified after the build. In a real setup, the deployment would be stopped here.",
+    nokey: "Enter who built it (publisher key).", nodig: "Enter the program fingerprint (sha256:…).",
+    fail: "Could not reach the blockchain", checking: "Checking the blockchain…", none: "No receipts found for this publisher on this network.",
+  },
+  uk: {
+    h1: "Чи це справді та програма, яку створили її автори?",
+    lead: "Іноді зловмисники підміняють програму на схожу вже після збірки, і ви запускаєте те, що ніхто не схвалював. Oath дає кожній офіційній збірці «квитанцію», яку не можна підробити, у публічному блокчейні та перевіряє її перед запуском.",
+    s1: "Офіційний конвеєр збирає програму.", s2: "Він записує «квитанцію» (відбиток) у блокчейн Solana. Потім її ніхто не змінить.",
+    s3: "Перед запуском звіряємо відбиток із квитанціями. Нема квитанції — запуск заблоковано.",
+    tryh: "Спробуй в один клік", tryp: "Обидві кнопки справді запитують блокчейн Solana просто зараз.",
+    bgood: "✔ Перевірити справжню програму", bevil: "✘ Перевірити підроблену програму",
+    own: "Перевірити свою програму", lkey: "Хто її зібрав? (ключ видавця)", hkey: "Публічний ключ офіційного конвеєра. Тут підставлено приклад.",
+    ldig: "Яка саме програма? (відбиток)", hdig: "Відбиток sha256:… образу, який хочеш перевірити.", lnet: "Мережа", check: "Перевірити",
+    recs: "Показати всі квитанції цього видавця", tt: "Час", tc: "Версія коду", td: "Відбиток", tx: "Квитанція",
+    nothing: "Ще нічого не завантажено. Спершу зроби перевірку.", foot: "Відкритий код · Зроблено для хакатону Colosseum ·",
+    okT: "✔ Справжня", okA: (c) => `Цю програму зібрав офіційний конвеєр із версії коду ${c}.`,
+    okB: (w, n) => `Квитанцію записано в Solana (${n}): ${w}. Її не можна змінити чи видалити.`, view: "Подивитися квитанцію в Solana Explorer",
+    badT: "✘ Не впізнано — не запускай", badA: "Офіційно ніхто не збирав програму з таким відбитком.",
+    badB: "Її могли підмінити або змінити після збірки. У реальній системі деплой тут було б зупинено.",
+    nokey: "Вкажи, хто зібрав (ключ видавця).", nodig: "Вкажи відбиток програми (sha256:…).",
+    fail: "Не вдалося звернутися до блокчейну", checking: "Перевіряю блокчейн…", none: "Для цього видавця в цій мережі квитанцій нема.",
+  },
+};
+let lang = (new URLSearchParams(location.search).get("lang")) || ((navigator.language || "").toLowerCase().startsWith("uk") ? "uk" : "en");
+if (!T[lang]) lang = "en";
+const t = (k) => T[lang][k];
+
+function applyLang() {
+  document.documentElement.lang = lang;
+  document.querySelectorAll("[data-i]").forEach((el) => { el.textContent = t(el.dataset.i); });
+  $("l-en").className = lang === "en" ? "on" : ""; $("l-uk").className = lang === "uk" ? "on" : "";
+}
+$("l-en").onclick = () => { lang = "en"; applyLang(); };
+$("l-uk").onclick = () => { lang = "uk"; applyLang(); };
+
+const net = () => $("net").value || "devnet";
+const cluster = () => (net() === "mainnet" ? "mainnet-beta" : "devnet");
+
+$("key").value = DEMO_KEY;
+$("digest").value = DEMO_GOOD;
+try { // shareable links: ?key=…&digest=…&net=mainnet
   const q = new URLSearchParams(location.search);
   if (q.get("key")) $("key").value = q.get("key");
   if (q.get("digest")) $("digest").value = q.get("digest");
@@ -88,8 +192,7 @@ try {
 
 async function rpc(method, params) {
   const r = await fetch(RPCS[net()], {
-    method: "POST",
-    headers: { "content-type": "application/json" },
+    method: "POST", headers: { "content-type": "application/json" },
     body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
   });
   if (!r.ok) throw new Error("RPC HTTP " + r.status);
@@ -101,39 +204,56 @@ async function rpc(method, params) {
 // The RPC returns memo as "[<len>] <text>"; several memos in one tx are joined with "; ".
 function parseMemo(memo) {
   if (!memo) return [];
-  return memo.split("; ")
-    .map((m) => m.replace(/^\[\d+\]\s*/, ""))
-    .filter((m) => m.startsWith("pod1|"))
-    .map((m) => {
-      const [, image, commit, digest, ts] = m.split("|");
-      return { image, commit, digest, ts };
-    });
+  return memo.split("; ").map((m) => m.replace(/^\[\d+\]\s*/, "")).filter((m) => m.startsWith("pod1|"))
+    .map((m) => { const [, image, commit, digest, ts] = m.split("|"); return { image, commit, digest, ts }; });
 }
+function extractDigest(s) { const m = (s || "").match(/sha256:[0-9a-fA-F]{64}/); return m ? m[0].toLowerCase() : null; }
 
-function extractDigest(s) {
-  const m = (s || "").match(/sha256:[0-9a-fA-F]{64}/);
-  return m ? m[0].toLowerCase() : null;
-}
+function cell(tr, text, cls) { const td = document.createElement("td"); if (cls) td.className = cls; td.textContent = text; tr.appendChild(td); }
 
-function cell(tr, text, cls) {
-  const td = document.createElement("td");
-  if (cls) td.className = cls;
-  td.textContent = text;
-  tr.appendChild(td);
-  return td;
-}
-
-async function verify() {
-  const keys = $("key").value.split(",").map((k) => k.trim()).filter(Boolean);
-  const want = extractDigest($("digest").value);
+function show(kind, title, lines, sig) {
   const box = $("result");
-  box.className = ""; box.replaceChildren();
+  box.className = kind; box.replaceChildren();
+  const h = document.createElement("p"); h.className = "big"; h.textContent = title; box.appendChild(h);
+  for (const l of lines) { const p = document.createElement("p"); p.textContent = l; box.appendChild(p); }
+  if (sig) {
+    const p = document.createElement("p"), a = document.createElement("a");
+    a.href = `https://explorer.solana.com/tx/${encodeURIComponent(sig)}?cluster=${cluster()}`;
+    a.target = "_blank"; a.rel = "noopener"; a.textContent = t("view") + " →";
+    p.appendChild(a); box.appendChild(p);
+  }
+  box.scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
 
-  if (!keys.length) return show("bad", "Missing key", "Enter the CI signer public key.");
-  if (!want) return show("bad", "Bad digest", "Could not find a sha256:<64 hex> digest in the input.");
+function renderList(builds, want) {
+  const tb = document.querySelector("#list tbody"); tb.replaceChildren();
+  $("list").hidden = builds.length === 0;
+  $("empty").hidden = builds.length > 0;
+  if (!builds.length) $("empty").textContent = t("none");
+  for (const b of builds) {
+    const tr = document.createElement("tr");
+    if (b.digest === want) tr.className = "match";
+    cell(tr, b.time ? new Date(b.time * 1000).toLocaleString() : b.ts);
+    cell(tr, b.commit, "mono"); cell(tr, b.digest, "mono");
+    const td = document.createElement("td"), a = document.createElement("a");
+    a.href = `https://explorer.solana.com/tx/${encodeURIComponent(b.sig)}?cluster=${cluster()}`;
+    a.target = "_blank"; a.rel = "noopener"; a.textContent = b.sig.slice(0, 8) + "…";
+    td.appendChild(a); tr.appendChild(td); tb.appendChild(tr);
+  }
+}
 
-  const btn = $("go");
-  btn.disabled = true; btn.textContent = "Checking…";
+let busy = false;
+async function verify(keyStr, digestStr) {
+  if (busy) return;
+  const keys = keyStr.split(",").map((k) => k.trim()).filter(Boolean);
+  const want = extractDigest(digestStr);
+  if (!keys.length) return show("bad", "!", [t("nokey")]);
+  if (!want) return show("bad", "!", [t("nodig")]);
+
+  busy = true;
+  const buttons = document.querySelectorAll("button"); buttons.forEach((b) => (b.disabled = true));
+  show("ok", "⏳ " + t("checking"), []);
+  $("result").className = "ok";
   try {
     const builds = [];
     for (const key of keys) {
@@ -147,62 +267,24 @@ async function verify() {
     const hit = builds.find((b) => b.digest === want);
     if (hit) {
       const when = hit.time ? new Date(hit.time * 1000).toLocaleString() : hit.ts;
-      show("ok", "✔ Verified", null, [
-        `This image was built by the pipeline from commit ${hit.commit}.`,
-        `Anchored on Solana ${net()}: ${when}`,
-      ], hit.sig);
+      show("ok", t("okT"), [t("okA")(hit.commit), t("okB")(when, net())], hit.sig);
     } else {
-      show("bad", "✘ NOT VERIFIED", null, [
-        "No pipeline build with this digest was ever anchored by this signer.",
-        "The image in prod may have been replaced outside the pipeline.",
-      ]);
+      show("bad", t("badT"), [t("badA"), t("badB")]);
     }
   } catch (e) {
-    show("bad", "Lookup failed", e.message);
+    show("bad", t("fail"), [e.message]);
   } finally {
-    btn.disabled = false; btn.textContent = "Verify";
+    busy = false; buttons.forEach((b) => (b.disabled = false));
   }
 }
 
-function show(kind, title, single, lines, sig) {
-  const box = $("result");
-  box.className = kind;
-  const h = document.createElement("h2"); h.textContent = title; box.appendChild(h);
-  for (const l of (lines || [single])) {
-    const p = document.createElement("p"); p.textContent = l; box.appendChild(p);
-  }
-  if (sig) {
-    const p = document.createElement("p");
-    const a = document.createElement("a");
-    a.href = `https://explorer.solana.com/tx/${encodeURIComponent(sig)}?cluster=${cluster()}`;
-    a.target = "_blank"; a.rel = "noopener"; a.textContent = "View transaction on Solana Explorer";
-    p.appendChild(a); box.appendChild(p);
-  }
-}
+$("demo-good").onclick = () => { $("net").value = "devnet"; $("key").value = DEMO_KEY; $("digest").value = DEMO_GOOD; verify(DEMO_KEY, DEMO_GOOD); };
+$("demo-evil").onclick = () => { $("net").value = "devnet"; $("key").value = DEMO_KEY; $("digest").value = DEMO_EVIL; verify(DEMO_KEY, DEMO_EVIL); };
+$("go").onclick = () => verify($("key").value, $("digest").value);
 
-function renderList(builds, want) {
-  const tb = document.querySelector("#list tbody");
-  tb.replaceChildren();
-  $("list").hidden = builds.length === 0;
-  $("empty").hidden = builds.length > 0;
-  if (!builds.length) $("empty").textContent = "No pod1 records found for this key on this network.";
-  for (const b of builds) {
-    const tr = document.createElement("tr");
-    if (b.digest === want) tr.className = "match";
-    cell(tr, b.time ? new Date(b.time * 1000).toLocaleString() : b.ts);
-    cell(tr, b.commit, "mono");
-    cell(tr, b.digest, "mono");
-    const td = document.createElement("td");
-    const a = document.createElement("a");
-    a.href = `https://explorer.solana.com/tx/${encodeURIComponent(b.sig)}?cluster=${cluster()}`;
-    a.target = "_blank"; a.rel = "noopener"; a.textContent = b.sig.slice(0, 8) + "…";
-    td.appendChild(a); tr.appendChild(td);
-    tb.appendChild(tr);
-  }
-}
-
-$("go").addEventListener("click", verify);
-if ($("key").value && $("digest").value) verify();
+applyLang();
+const qs = new URLSearchParams(location.search);
+if (qs.get("key") && qs.get("digest")) { $("own").open = true; verify($("key").value, $("digest").value); }
 </script>
 </body>
 </html>
