@@ -10,6 +10,7 @@
 <meta property="og:image" content="https://tymofii-thc.github.io/oath/assets/social-preview.png">
 <style>
   :root {
+    --t: 0.9; /* text scale: 1 = 100% */
     --bg: #0d1117; --panel: #151b23; --ink: #e6edf3; --muted: #8b949e; --line: #2a313c;
     --ok: #3fb950; --ok-bg: #12261a; --bad: #f85149; --bad-bg: #2a1517; --accent: #7c8cff; --code: #0a0e14;
   }
@@ -20,53 +21,53 @@
     }
   }
   * { box-sizing: border-box; }
-  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: calc(15px * var(--t))/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
   main { max-width: 900px; margin: 0 auto; padding: 24px 16px 72px; }
   .mono, code, pre, input, .term { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
   .top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 22px; }
-  .brand { font-weight: 800; font-size: 18px; letter-spacing: -.01em; }
+  .brand { font-weight: 800; font-size: calc(18px * var(--t)); letter-spacing: -.01em; }
   .brand { display: flex; align-items: baseline; }
   .logo { height: 26px; width: auto; display: block; align-self: center; }
-  .brand small { color: var(--muted); font-weight: 400; margin-left: 12px; font-size: 13px; }
-  .lang button { margin-left: 6px; padding: 3px 9px; font-size: 12px; background: transparent; color: var(--muted); border: 1px solid var(--line); border-radius: 6px; cursor: pointer; }
+  .brand small { color: var(--muted); font-weight: 400; margin-left: 12px; font-size: calc(13px * var(--t)); }
+  .lang button { margin-left: 6px; padding: 3px 9px; font-size: calc(12px * var(--t)); background: transparent; color: var(--muted); border: 1px solid var(--line); border-radius: 6px; cursor: pointer; }
   .lang button.on { color: var(--ink); border-color: var(--accent); }
-  h1 { font-size: clamp(26px, 5vw, 36px); line-height: 1.15; letter-spacing: -.03em; margin: 0 0 10px; }
-  .lead { color: var(--muted); font-size: 17px; margin: 0 0 22px; max-width: 70ch; }
-  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 34px 0 10px; }
+  h1 { font-size: clamp(calc(26px * var(--t)), 5vw, calc(36px * var(--t))); line-height: 1.15; letter-spacing: -.03em; margin: 0 0 10px; }
+  .lead { color: var(--muted); font-size: calc(17px * var(--t)); margin: 0 0 22px; max-width: 70ch; }
+  h2 { font-size: calc(13px * var(--t)); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 34px 0 10px; }
   .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; }
-  .flow { display: flex; flex-wrap: wrap; gap: 8px; align-items: stretch; font-size: 13px; }
+  .flow { display: flex; flex-wrap: wrap; gap: 8px; align-items: stretch; font-size: calc(13px * var(--t)); }
   .node { flex: 1 1 130px; border: 1px solid var(--line); border-radius: 8px; padding: 10px; background: var(--panel); }
   .node b { display: block; margin-bottom: 2px; }
-  .node span { color: var(--muted); font-size: 12px; }
+  .node span { color: var(--muted); font-size: calc(12px * var(--t)); }
   .node.gate { border-color: var(--accent); }
   .arrow { align-self: center; color: var(--muted); }
   .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
   @media (max-width: 640px) { .row { grid-template-columns: 1fr; } }
-  label { display: block; font-size: 12px; font-weight: 600; color: var(--muted); margin: 12px 0 4px; }
-  input, select { width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--code); color: var(--ink); font-size: 13px; }
+  label { display: block; font-size: calc(12px * var(--t)); font-weight: 600; color: var(--muted); margin: 12px 0 4px; }
+  input, select { width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--code); color: var(--ink); font-size: calc(13px * var(--t)); }
   input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
   .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
-  button.chip, button.run { padding: 7px 12px; border-radius: 6px; border: 1px solid var(--line); background: var(--code); color: var(--ink); font: 13px ui-monospace, monospace; cursor: pointer; }
+  button.chip, button.run { padding: 7px 12px; border-radius: 6px; border: 1px solid var(--line); background: var(--code); color: var(--ink); font: calc(13px * var(--t)) ui-monospace, monospace; cursor: pointer; }
   button.chip:hover { border-color: var(--accent); }
   button.run { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; margin-left: auto; }
   button:disabled { opacity: .55; cursor: wait; }
-  .term { margin-top: 14px; border-radius: 8px; padding: 14px; font-size: 13px; background: var(--code); border: 1px solid var(--line); white-space: pre-wrap; word-break: break-all; min-height: 52px; }
+  .term { margin-top: 14px; border-radius: 8px; padding: 14px; font-size: calc(13px * var(--t)); background: var(--code); border: 1px solid var(--line); white-space: pre-wrap; word-break: break-all; min-height: 52px; }
   .term.ok { border-color: var(--ok); } .term.bad { border-color: var(--bad); }
   .term .v { color: var(--ok); font-weight: 700; } .term .n { color: var(--bad); font-weight: 700; } .term .d { color: var(--muted); }
   .term a { color: var(--accent); }
-  pre { margin: 0; padding: 12px; border-radius: 8px; background: var(--code); border: 1px solid var(--line); overflow-x: auto; font-size: 12.5px; }
-  .tabs button { padding: 6px 11px; margin: 0 6px 10px 0; border: 1px solid var(--line); background: transparent; color: var(--muted); border-radius: 6px; cursor: pointer; font-size: 13px; }
+  pre { margin: 0; padding: 12px; border-radius: 8px; background: var(--code); border: 1px solid var(--line); overflow-x: auto; font-size: calc(12.5px * var(--t)); }
+  .tabs button { padding: 6px 11px; margin: 0 6px 10px 0; border: 1px solid var(--line); background: transparent; color: var(--muted); border-radius: 6px; cursor: pointer; font-size: calc(13px * var(--t)); }
   .tabs button.on { color: var(--ink); border-color: var(--accent); }
-  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  table { width: 100%; border-collapse: collapse; font-size: calc(13px * var(--t)); }
   th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
   th { color: var(--muted); font-weight: 600; }
-  td.m { font-family: ui-monospace, monospace; word-break: break-all; font-size: 12px; }
+  td.m { font-family: ui-monospace, monospace; word-break: break-all; font-size: calc(12px * var(--t)); }
   tr.match td { background: var(--ok-bg); }
   .tw { overflow-x: auto; }
   .yes { color: var(--ok); } .no { color: var(--bad); }
-  footer { color: var(--muted); font-size: 13px; margin-top: 34px; }
+  footer { color: var(--muted); font-size: calc(13px * var(--t)); margin-top: 34px; }
   footer a { color: var(--accent); }
-  .hint { color: var(--muted); font-size: 13px; }
+  .hint { color: var(--muted); font-size: calc(13px * var(--t)); }
 </style>
 </head>
 <body>
