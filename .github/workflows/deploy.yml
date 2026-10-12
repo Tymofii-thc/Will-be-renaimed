@@ -37,7 +37,7 @@ jobs:
       # Optional gate: set repo variable OATH_SCAN=true to refuse to anchor (and therefore deploy) images with fixable CRITICAL vulnerabilities.
       - name: Vulnerability scan (Trivy)
         if: vars.OATH_SCAN == 'true'
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.28.0
         with:
           image-ref: ${{ env.IMAGE }}@${{ steps.build.outputs.digest }}
           severity: CRITICAL

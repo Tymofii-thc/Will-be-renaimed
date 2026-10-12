@@ -4,7 +4,7 @@
   "description": "Anchor Docker image digests to Solana devnet from CI and verify what runs in prod",
   "main": "index.js",
   "scripts": {
-    "test": "node --test test/"
+    "test": "node --test test/*.test.mjs"
   },
   "keywords": [],
   "author": "",
