@@ -170,7 +170,7 @@ kubectl run t --image=nginx
 const T = {
   en: {
     h1: "On-chain provenance gate for container deploys",
-    lead: "CI anchors every image digest in a Solana Memo transaction signed by a dedicated key. Before deploy (CLI) or at pod admission (webhook), the digest about to run must have a record from the trusted signer, otherwise the deploy is blocked. No custom smart contract.",
+    lead: "On-chain provenance gate for container deploys. CI anchors every image digest in a Solana Memo transaction signed by a dedicated key. Before deploy (CLI) or at pod admission (webhook), the digest about to run must have a record from the trusted signer, otherwise the deploy is blocked. No custom smart contract.",
     n1: "source of truth for the code", n2: "builds and pushes image, gets digest", n3: "pod1|image|commit|digest|time, signed by CI key", n4: "CLI exit 1 / admission denied",
     live: "Live verifier (queries Solana right now)", pgood: "load known-good digest", pevil: "load tampered digest", idle: "$ oath verify … (press the button)",
     use: "Integrate", rec: "Records anchored by this signer", tt: "time", empty: "Run a verification to load the signer's records.",
@@ -186,7 +186,7 @@ const T = {
   },
   uk: {
     h1: "On-chain перевірка походження образів перед деплоєм",
-    lead: "CI записує digest кожного образу в Memo-транзакцію Solana, підписану окремим ключем. Перед деплоєм (CLI) або при допуску pod-а (webhook) digest, що збираються запустити, мусить мати запис від довіреного підписанта, інакше деплой блокується. Без власного смарт-контракту.",
+    lead: "On-chain перевірка походження образів перед деплоєм. CI записує digest кожного образу в Memo-транзакцію Solana, підписану окремим ключем. Перед деплоєм (CLI) або при допуску pod-а (webhook) digest, що збираються запустити, мусить мати запис від довіреного підписанта, інакше деплой блокується. Без власного смарт-контракту.",
     n1: "джерело істини для коду", n2: "збирає й пушить образ, отримує digest", n3: "pod1|image|commit|digest|time, підпис ключа CI", n4: "CLI exit 1 / admission denied",
     live: "Живий верифікатор (запит до Solana зараз)", pgood: "підставити валідний digest", pevil: "підставити підроблений digest", idle: "$ oath verify … (натисни кнопку)",
     use: "Підключення", rec: "Записи цього підписанта", tt: "час", empty: "Запусти перевірку, щоб завантажити записи підписанта.",
