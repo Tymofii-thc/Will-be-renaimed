@@ -3,122 +3,128 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Oath — is this software really what its makers built?</title>
+<title>Oath — on-chain provenance gate for container deploys</title>
 <style>
   :root {
-    --bg: #f6f7f9; --card: #ffffff; --ink: #14181f; --muted: #5d6675; --line: #dde1e8;
-    --ok: #0f7b3f; --ok-bg: #e3f5ea; --bad: #b3261e; --bad-bg: #fbe6e4; --accent: #3b4cca;
+    --bg: #0d1117; --panel: #151b23; --ink: #e6edf3; --muted: #8b949e; --line: #2a313c;
+    --ok: #3fb950; --ok-bg: #12261a; --bad: #f85149; --bad-bg: #2a1517; --accent: #7c8cff; --code: #0a0e14;
   }
-  @media (prefers-color-scheme: dark) {
+  @media (prefers-color-scheme: light) {
     :root {
-      --bg: #0f1218; --card: #171b23; --ink: #e8ebf1; --muted: #98a1b1; --line: #2a303b;
-      --ok: #5fd68f; --ok-bg: #12301f; --bad: #ff8a80; --bad-bg: #3a1815; --accent: #8c99ff;
+      --bg: #f6f8fa; --panel: #ffffff; --ink: #1f2328; --muted: #59636e; --line: #d1d9e0;
+      --ok: #1a7f37; --ok-bg: #dafbe1; --bad: #cf222e; --bad-bg: #ffebe9; --accent: #4254d9; --code: #f0f3f6;
     }
   }
   * { box-sizing: border-box; }
-  body { margin: 0; background: var(--bg); color: var(--ink);
-    font: 17px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
-  main { max-width: 780px; margin: 0 auto; padding: 24px 16px 72px; }
-  .top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 28px; }
-  .brand { font-weight: 800; font-size: 20px; letter-spacing: -0.02em; }
-  .lang button { margin: 0 0 0 6px; padding: 4px 10px; font-size: 13px; background: transparent;
-    color: var(--muted); border: 1px solid var(--line); }
-  .lang button.on { background: var(--accent); color: #fff; border-color: var(--accent); }
-  h1 { font-size: clamp(28px, 6vw, 40px); line-height: 1.15; margin: 0 0 12px; letter-spacing: -0.03em; }
-  .lead { font-size: 19px; color: var(--muted); margin: 0 0 28px; }
-  .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 0 0 32px; }
-  .step { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px; }
-  .step b { display: block; font-size: 26px; }
-  .step span { font-size: 14px; color: var(--muted); }
-  @media (max-width: 560px) { .steps { grid-template-columns: 1fr; } }
-  h2 { font-size: 22px; margin: 0 0 6px; }
-  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 22px; margin-bottom: 20px; }
-  .try { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 14px; }
-  @media (max-width: 560px) { .try { grid-template-columns: 1fr; } }
-  button { padding: 14px 16px; border: 0; border-radius: 10px; cursor: pointer;
-    background: var(--accent); color: #fff; font: 600 16px system-ui, sans-serif; }
-  button.good { background: var(--ok); color: #fff; }
-  button.evil { background: var(--bad); color: #fff; }
-  button:disabled { opacity: .6; cursor: wait; }
-  #result { margin-top: 18px; display: none; border-radius: 12px; padding: 18px 20px; }
-  #result.ok { display: block; background: var(--ok-bg); color: var(--ok); border: 2px solid var(--ok); }
-  #result.bad { display: block; background: var(--bad-bg); color: var(--bad); border: 2px solid var(--bad); }
-  #result .big { font-size: 24px; font-weight: 800; margin: 0 0 6px; }
-  #result p { margin: 6px 0; color: var(--ink); font-size: 16px; }
-  #result a { color: inherit; font-weight: 600; }
-  details { margin-top: 6px; }
-  summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
-  label { display: block; font-size: 14px; font-weight: 600; margin: 16px 0 4px; }
-  .help { font-size: 13px; color: var(--muted); margin: 0 0 6px; }
-  input, select { width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px;
-    background: var(--bg); color: var(--ink); font: 14px ui-monospace, SFMono-Regular, Menlo, monospace; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 900px; margin: 0 auto; padding: 24px 16px 72px; }
+  .mono, code, pre, input, .term { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  .top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 22px; }
+  .brand { font-weight: 800; font-size: 18px; letter-spacing: -.01em; }
+  .brand small { color: var(--muted); font-weight: 400; margin-left: 8px; }
+  .lang button { margin-left: 6px; padding: 3px 9px; font-size: 12px; background: transparent; color: var(--muted); border: 1px solid var(--line); border-radius: 6px; cursor: pointer; }
+  .lang button.on { color: var(--ink); border-color: var(--accent); }
+  h1 { font-size: clamp(26px, 5vw, 36px); line-height: 1.15; letter-spacing: -.03em; margin: 0 0 10px; }
+  .lead { color: var(--muted); font-size: 17px; margin: 0 0 22px; max-width: 70ch; }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 34px 0 10px; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; }
+  .flow { display: flex; flex-wrap: wrap; gap: 8px; align-items: stretch; font-size: 13px; }
+  .node { flex: 1 1 130px; border: 1px solid var(--line); border-radius: 8px; padding: 10px; background: var(--panel); }
+  .node b { display: block; margin-bottom: 2px; }
+  .node span { color: var(--muted); font-size: 12px; }
+  .node.gate { border-color: var(--accent); }
+  .arrow { align-self: center; color: var(--muted); }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 640px) { .row { grid-template-columns: 1fr; } }
+  label { display: block; font-size: 12px; font-weight: 600; color: var(--muted); margin: 12px 0 4px; }
+  input, select { width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--code); color: var(--ink); font-size: 13px; }
   input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
-  #go { margin-top: 16px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  button.chip, button.run { padding: 7px 12px; border-radius: 6px; border: 1px solid var(--line); background: var(--code); color: var(--ink); font: 13px ui-monospace, monospace; cursor: pointer; }
+  button.chip:hover { border-color: var(--accent); }
+  button.run { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; margin-left: auto; }
+  button:disabled { opacity: .55; cursor: wait; }
+  .term { margin-top: 14px; border-radius: 8px; padding: 14px; font-size: 13px; background: var(--code); border: 1px solid var(--line); white-space: pre-wrap; word-break: break-all; min-height: 52px; }
+  .term.ok { border-color: var(--ok); } .term.bad { border-color: var(--bad); }
+  .term .v { color: var(--ok); font-weight: 700; } .term .n { color: var(--bad); font-weight: 700; } .term .d { color: var(--muted); }
+  .term a { color: var(--accent); }
+  pre { margin: 0; padding: 12px; border-radius: 8px; background: var(--code); border: 1px solid var(--line); overflow-x: auto; font-size: 12.5px; }
+  .tabs button { padding: 6px 11px; margin: 0 6px 10px 0; border: 1px solid var(--line); background: transparent; color: var(--muted); border-radius: 6px; cursor: pointer; font-size: 13px; }
+  .tabs button.on { color: var(--ink); border-color: var(--accent); }
   table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
-  td.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; word-break: break-all; }
+  th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; }
+  td.m { font-family: ui-monospace, monospace; word-break: break-all; font-size: 12px; }
   tr.match td { background: var(--ok-bg); }
-  .table-wrap { overflow-x: auto; }
-  .hint { font-size: 14px; color: var(--muted); }
-  footer { color: var(--muted); font-size: 14px; margin-top: 28px; }
+  .tw { overflow-x: auto; }
+  .yes { color: var(--ok); } .no { color: var(--bad); }
+  footer { color: var(--muted); font-size: 13px; margin-top: 34px; }
   footer a { color: var(--accent); }
+  .hint { color: var(--muted); font-size: 13px; }
 </style>
 </head>
 <body>
 <main>
   <div class="top">
-    <div class="brand">🛡️ Oath</div>
+    <div class="brand">oath<small>proof of deploy</small></div>
     <div class="lang"><button id="l-en" type="button">EN</button><button id="l-uk" type="button">UA</button></div>
   </div>
 
   <h1 data-i="h1"></h1>
   <p class="lead" data-i="lead"></p>
 
-  <div class="steps">
-    <div class="step"><b>1 🔨</b><span data-i="s1"></span></div>
-    <div class="step"><b>2 🧾</b><span data-i="s2"></span></div>
-    <div class="step"><b>3 ✅</b><span data-i="s3"></span></div>
+  <div class="flow" aria-label="pipeline">
+    <div class="node"><b>git commit</b><span data-i="n1"></span></div><div class="arrow">→</div>
+    <div class="node"><b>CI build</b><span data-i="n2"></span></div><div class="arrow">→</div>
+    <div class="node"><b>Solana Memo tx</b><span data-i="n3"></span></div><div class="arrow">→</div>
+    <div class="node gate"><b>verify gate</b><span data-i="n4"></span></div>
   </div>
 
-  <div class="card">
-    <h2 data-i="tryh"></h2>
-    <div class="hint" data-i="tryp"></div>
-    <div class="try">
-      <button id="demo-good" class="good" type="button" data-i="bgood"></button>
-      <button id="demo-evil" class="evil" type="button" data-i="bevil"></button>
+  <h2 data-i="live"></h2>
+  <div class="panel">
+    <div class="row">
+      <div><label for="key">signer (CI public key, comma-separated for rotation)</label><input id="key" autocomplete="off" spellcheck="false"></div>
+      <div><label for="net">network</label><select id="net"><option value="devnet">devnet</option><option value="mainnet">mainnet</option></select></div>
     </div>
-    <div id="result" role="status" aria-live="polite"></div>
+    <label for="digest">image digest</label>
+    <input id="digest" placeholder="sha256:… or repo@sha256:…" autocomplete="off" spellcheck="false">
+    <div class="chips">
+      <button class="chip" id="p-good" type="button" data-i="pgood"></button>
+      <button class="chip" id="p-evil" type="button" data-i="pevil"></button>
+      <button class="run" id="go" type="button">oath verify</button>
+    </div>
+    <div class="term" id="out" role="status" aria-live="polite"><span class="d" data-i="idle"></span></div>
   </div>
 
-  <div class="card">
-    <details id="own">
-      <summary data-i="own"></summary>
-      <label for="key" data-i="lkey"></label>
-      <div class="help" data-i="hkey"></div>
-      <input id="key" autocomplete="off" spellcheck="false">
-      <label for="digest" data-i="ldig"></label>
-      <div class="help" data-i="hdig"></div>
-      <input id="digest" placeholder="sha256:…" autocomplete="off" spellcheck="false">
-      <label for="net" data-i="lnet"></label>
-      <select id="net"><option value="devnet">devnet (test)</option><option value="mainnet">mainnet</option></select>
-      <button id="go" type="button" data-i="check"></button>
-    </details>
+  <h2 data-i="use"></h2>
+  <div class="panel">
+    <div class="tabs"><button class="on" data-tab="gh" type="button">GitHub Actions</button><button data-tab="cli" type="button">CLI</button><button data-tab="k8s" type="button">Kubernetes</button></div>
+    <pre id="snip"></pre>
   </div>
 
-  <div class="card">
-    <details>
-      <summary data-i="recs"></summary>
-      <div class="table-wrap">
-        <table id="list" hidden>
-          <thead><tr><th data-i="tt"></th><th data-i="tc"></th><th data-i="td"></th><th data-i="tx"></th></tr></thead>
-          <tbody></tbody>
-        </table>
-      </div>
-      <p class="hint" id="empty" data-i="nothing"></p>
-    </details>
+  <h2 data-i="rec"></h2>
+  <div class="panel">
+    <div class="mono hint" style="margin-bottom:8px">pod1|&lt;image&gt;|&lt;commit12&gt;|&lt;sha256 digest&gt;|&lt;ISO time&gt;</div>
+    <div class="tw"><table id="list" hidden><thead><tr><th data-i="tt"></th><th>commit</th><th>image</th><th>digest</th><th>tx</th></tr></thead><tbody></tbody></table></div>
+    <p class="hint" id="empty" data-i="empty"></p>
   </div>
 
-  <footer><span data-i="foot"></span> <a href="https://github.com/Tymofii-thc/oath">GitHub</a></footer>
+  <h2 data-i="tm"></h2>
+  <div class="panel tw">
+    <table>
+      <thead><tr><th data-i="tm1"></th><th data-i="tm2"></th></tr></thead>
+      <tbody>
+        <tr><td data-i="a1"></td><td class="yes" data-i="r1"></td></tr>
+        <tr><td data-i="a2"></td><td class="yes" data-i="r2"></td></tr>
+        <tr><td data-i="a3"></td><td class="yes" data-i="r3"></td></tr>
+        <tr><td data-i="a4"></td><td class="yes" data-i="r4"></td></tr>
+        <tr><td data-i="a5"></td><td class="no" data-i="r5"></td></tr>
+        <tr><td data-i="a6"></td><td class="no" data-i="r6"></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <footer><span data-i="foot"></span> <a href="https://github.com/Tymofii-thc/oath">github.com/Tymofii-thc/oath</a></footer>
 </main>
 
 <script>
@@ -128,48 +134,70 @@ const DEMO_KEY = "5D4W8x8UeqW3qVi9uzNzvJPWiJZQaRWVR9ru2ckFhoih";
 const DEMO_GOOD = "sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc";
 const DEMO_EVIL = "sha256:" + "1".repeat(64);
 
+const SNIP = {
+  gh: `# after build
+- uses: Tymofii-thc/oath@main
+  with:
+    image: ghcr.io/\${{ github.repository }}
+    digest: \${{ steps.build.outputs.digest }}
+    secret-key: \${{ secrets.SOLANA_SECRET_KEY }}
+
+# before deploy: exit 1 stops the job
+- run: docker pull $IMAGE:latest
+- run: npx --yes --allow-git=all github:Tymofii-thc/oath verify \\
+        --signer "\${{ vars.OATH_SIGNER }}" --image $IMAGE:latest`,
+  cli: `oath verify --signer <pubkey[,pubkey]> --digest sha256:…
+oath verify --signer <pubkey> --image ghcr.io/me/app:latest   # RepoDigest from local docker
+oath verify --signer <pubkey> --container prod                # image that is RUNNING now
+  --network devnet|mainnet | --rpc <url>   --max-age <days>   --no-bind
+
+exit 0 verified · 1 not verified · 2 usage/network error`,
+  k8s: `OATH_SIGNER=<pubkey> OATH_NETWORK=mainnet deploy/install.sh
+
+kubectl run t --image=nginx
+# Error: admission webhook "pods.oath.io" denied the request:
+#   oath: refusing to admit pod. nginx (sha256:df22…): no pipeline build anchored by the trusted signer(s)
+
+# mutating: tag is pinned to the verified digest, failurePolicy: Fail (fail closed)`,
+};
+
 const T = {
   en: {
-    h1: "Is this software really what its makers built?",
-    lead: "Attackers sometimes swap a program for a look-alike after it was built, so you run something nobody approved. Oath gives every official build a tamper-proof receipt on a public blockchain, and checks it before anything runs.",
-    s1: "The official pipeline builds the program.", s2: "It writes a receipt (a fingerprint) to the Solana blockchain. Nobody can edit it later.",
-    s3: "Before running, we check the fingerprint against the receipts. No receipt = blocked.",
-    tryh: "Try it in one click", tryp: "Both buttons really query the Solana blockchain right now.",
-    bgood: "✔ Check the genuine program", bevil: "✘ Check a tampered program",
-    own: "Check your own program", lkey: "Who built it? (publisher key)", hkey: "The public key of the official pipeline. A prefilled example is used here.",
-    ldig: "Which program? (fingerprint)", hdig: "The sha256:… fingerprint of the image you want to check.", lnet: "Network", check: "Check",
-    recs: "See all receipts from this publisher", tt: "Time", tc: "Code version", td: "Fingerprint", tx: "Receipt",
-    nothing: "Nothing loaded yet. Run a check first.", foot: "Open source · Built for the Colosseum hackathon ·",
-    okT: "✔ Genuine", okA: (c) => `This program was built by the official pipeline from code version ${c}.`,
-    okB: (w, n) => `Receipt written on Solana ${n}: ${w}. It can't be changed or deleted.`, view: "View the receipt on Solana Explorer",
-    badT: "✘ Not recognised — do not run it", badA: "Nobody official built a program with this fingerprint.",
-    badB: "It may have been swapped or modified after the build. In a real setup, the deployment would be stopped here.",
-    nokey: "Enter who built it (publisher key).", nodig: "Enter the program fingerprint (sha256:…).",
-    fail: "Could not reach the blockchain", checking: "Checking the blockchain…", none: "No receipts found for this publisher on this network.",
+    h1: "On-chain provenance gate for container deploys",
+    lead: "CI anchors every image digest in a Solana Memo transaction signed by a dedicated key. Before deploy (CLI) or at pod admission (webhook), the digest about to run must have a record from the trusted signer, otherwise the deploy is blocked. No custom smart contract.",
+    n1: "source of truth for the code", n2: "builds and pushes image, gets digest", n3: "pod1|image|commit|digest|time, signed by CI key", n4: "CLI exit 1 / admission denied",
+    live: "Live verifier (queries Solana right now)", pgood: "load known-good digest", pevil: "load tampered digest", idle: "$ oath verify … (press the button)",
+    use: "Integrate", rec: "Records anchored by this signer", tt: "time", empty: "Run a verification to load the signer's records.",
+    tm: "Threat model", tm1: "Scenario", tm2: "Outcome",
+    a1: "Image replaced in the registry under the same tag", r1: "blocked: digest has no record",
+    a2: "Tag moved between check and pull", r2: "blocked: webhook pins tag to the verified digest",
+    a3: "CI admin rewrites the build log", r3: "irrelevant: the record is on a public ledger",
+    a4: "Digest anchored for another image reused for this one", r4: "blocked: record is bound to the image name",
+    a5: "CI signing key stolen", r5: "NOT covered: attacker can anchor a digest. Mitigations: rotation, revocation, --max-age. Hardware / keyless signing is future work.",
+    a6: "Malicious or vulnerable code built honestly", r6: "NOT covered: provenance, not security (optional Trivy gate in CI).",
+    foot: "Open source ·", checking: "resolving signatures…", none: "No records for this signer on this network.", fail: "RPC error",
+    nokey: "missing signer", nodig: "no sha256:<64 hex> digest found in input",
   },
   uk: {
-    h1: "Чи це справді та програма, яку створили її автори?",
-    lead: "Іноді зловмисники підміняють програму на схожу вже після збірки, і ви запускаєте те, що ніхто не схвалював. Oath дає кожній офіційній збірці «квитанцію», яку не можна підробити, у публічному блокчейні та перевіряє її перед запуском.",
-    s1: "Офіційний конвеєр збирає програму.", s2: "Він записує «квитанцію» (відбиток) у блокчейн Solana. Потім її ніхто не змінить.",
-    s3: "Перед запуском звіряємо відбиток із квитанціями. Нема квитанції — запуск заблоковано.",
-    tryh: "Спробуй в один клік", tryp: "Обидві кнопки справді запитують блокчейн Solana просто зараз.",
-    bgood: "✔ Перевірити справжню програму", bevil: "✘ Перевірити підроблену програму",
-    own: "Перевірити свою програму", lkey: "Хто її зібрав? (ключ видавця)", hkey: "Публічний ключ офіційного конвеєра. Тут підставлено приклад.",
-    ldig: "Яка саме програма? (відбиток)", hdig: "Відбиток sha256:… образу, який хочеш перевірити.", lnet: "Мережа", check: "Перевірити",
-    recs: "Показати всі квитанції цього видавця", tt: "Час", tc: "Версія коду", td: "Відбиток", tx: "Квитанція",
-    nothing: "Ще нічого не завантажено. Спершу зроби перевірку.", foot: "Відкритий код · Зроблено для хакатону Colosseum ·",
-    okT: "✔ Справжня", okA: (c) => `Цю програму зібрав офіційний конвеєр із версії коду ${c}.`,
-    okB: (w, n) => `Квитанцію записано в Solana (${n}): ${w}. Її не можна змінити чи видалити.`, view: "Подивитися квитанцію в Solana Explorer",
-    badT: "✘ Не впізнано — не запускай", badA: "Офіційно ніхто не збирав програму з таким відбитком.",
-    badB: "Її могли підмінити або змінити після збірки. У реальній системі деплой тут було б зупинено.",
-    nokey: "Вкажи, хто зібрав (ключ видавця).", nodig: "Вкажи відбиток програми (sha256:…).",
-    fail: "Не вдалося звернутися до блокчейну", checking: "Перевіряю блокчейн…", none: "Для цього видавця в цій мережі квитанцій нема.",
+    h1: "On-chain перевірка походження образів перед деплоєм",
+    lead: "CI записує digest кожного образу в Memo-транзакцію Solana, підписану окремим ключем. Перед деплоєм (CLI) або при допуску pod-а (webhook) digest, що збираються запустити, мусить мати запис від довіреного підписанта, інакше деплой блокується. Без власного смарт-контракту.",
+    n1: "джерело істини для коду", n2: "збирає й пушить образ, отримує digest", n3: "pod1|image|commit|digest|time, підпис ключа CI", n4: "CLI exit 1 / admission denied",
+    live: "Живий верифікатор (запит до Solana зараз)", pgood: "підставити валідний digest", pevil: "підставити підроблений digest", idle: "$ oath verify … (натисни кнопку)",
+    use: "Підключення", rec: "Записи цього підписанта", tt: "час", empty: "Запусти перевірку, щоб завантажити записи підписанта.",
+    tm: "Модель загроз", tm1: "Сценарій", tm2: "Результат",
+    a1: "Образ у реєстрі підмінено під тим самим тегом", r1: "блокується: для digest нема запису",
+    a2: "Тег переставили між перевіркою і pull", r2: "блокується: webhook фіксує тег на перевірений digest",
+    a3: "Адмін CI переписує лог збірки", r3: "не впливає: запис у публічному реєстрі",
+    a4: "Digest, зафіксований для іншого образу, видають за цей", r4: "блокується: запис привʼязаний до імені образу",
+    a5: "Вкрадено ключ підпису CI", r5: "НЕ покрито: атакувальник може записати digest. Пом'якшення: ротація, відкликання, --max-age. Апаратні / keyless ключі це наступний крок.",
+    a6: "Шкідливий або вразливий код, зібраний чесно", r6: "НЕ покрито: це походження, а не безпека (необовʼязковий Trivy-гейт у CI).",
+    foot: "Відкритий код ·", checking: "резолвлю підписи…", none: "Для цього підписанта в цій мережі записів нема.", fail: "помилка RPC",
+    nokey: "не вказано підписанта", nodig: "у вводі нема digest виду sha256:<64 hex>",
   },
 };
-let lang = (new URLSearchParams(location.search).get("lang")) || ((navigator.language || "").toLowerCase().startsWith("uk") ? "uk" : "en");
+let lang = new URLSearchParams(location.search).get("lang") || ((navigator.language || "").toLowerCase().startsWith("uk") ? "uk" : "en");
 if (!T[lang]) lang = "en";
 const t = (k) => T[lang][k];
-
 function applyLang() {
   document.documentElement.lang = lang;
   document.querySelectorAll("[data-i]").forEach((el) => { el.textContent = t(el.dataset.i); });
@@ -178,12 +206,16 @@ function applyLang() {
 $("l-en").onclick = () => { lang = "en"; applyLang(); };
 $("l-uk").onclick = () => { lang = "uk"; applyLang(); };
 
+document.querySelectorAll(".tabs button").forEach((b) => (b.onclick = () => {
+  document.querySelectorAll(".tabs button").forEach((x) => (x.className = ""));
+  b.className = "on"; $("snip").textContent = SNIP[b.dataset.tab];
+}));
+$("snip").textContent = SNIP.gh;
+
 const net = () => $("net").value || "devnet";
 const cluster = () => (net() === "mainnet" ? "mainnet-beta" : "devnet");
-
-$("key").value = DEMO_KEY;
-$("digest").value = DEMO_GOOD;
-try { // shareable links: ?key=…&digest=…&net=mainnet
+$("key").value = DEMO_KEY; $("digest").value = DEMO_GOOD;
+try {
   const q = new URLSearchParams(location.search);
   if (q.get("key")) $("key").value = q.get("key");
   if (q.get("digest")) $("digest").value = q.get("digest");
@@ -191,16 +223,13 @@ try { // shareable links: ?key=…&digest=…&net=mainnet
 } catch (e) {}
 
 async function rpc(method, params) {
-  const r = await fetch(RPCS[net()], {
-    method: "POST", headers: { "content-type": "application/json" },
-    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
-  });
+  const r = await fetch(RPCS[net()], { method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }) });
   if (!r.ok) throw new Error("RPC HTTP " + r.status);
   const j = await r.json();
   if (j.error) throw new Error(j.error.message);
   return j.result;
 }
-
 // The RPC returns memo as "[<len>] <text>"; several memos in one tx are joined with "; ".
 function parseMemo(memo) {
   if (!memo) return [];
@@ -208,83 +237,79 @@ function parseMemo(memo) {
     .map((m) => { const [, image, commit, digest, ts] = m.split("|"); return { image, commit, digest, ts }; });
 }
 function extractDigest(s) { const m = (s || "").match(/sha256:[0-9a-fA-F]{64}/); return m ? m[0].toLowerCase() : null; }
+function cell(tr, text, cls) { const td = document.createElement("td"); if (cls) td.className = cls; td.textContent = text; tr.appendChild(td); return td; }
+const txUrl = (sig) => `https://explorer.solana.com/tx/${encodeURIComponent(sig)}?cluster=${cluster()}`;
 
-function cell(tr, text, cls) { const td = document.createElement("td"); if (cls) td.className = cls; td.textContent = text; tr.appendChild(td); }
-
-function show(kind, title, lines, sig) {
-  const box = $("result");
-  box.className = kind; box.replaceChildren();
-  const h = document.createElement("p"); h.className = "big"; h.textContent = title; box.appendChild(h);
-  for (const l of lines) { const p = document.createElement("p"); p.textContent = l; box.appendChild(p); }
-  if (sig) {
-    const p = document.createElement("p"), a = document.createElement("a");
-    a.href = `https://explorer.solana.com/tx/${encodeURIComponent(sig)}?cluster=${cluster()}`;
-    a.target = "_blank"; a.rel = "noopener"; a.textContent = t("view") + " →";
-    p.appendChild(a); box.appendChild(p);
+// Terminal-style output: lines = [{cls, text} | {link:{href,text}}]
+function term(kind, lines) {
+  const o = $("out"); o.className = "term " + kind; o.replaceChildren();
+  for (const l of lines) {
+    const row = document.createElement("div");
+    if (l.href) { const a = document.createElement("a"); a.href = l.href; a.target = "_blank"; a.rel = "noopener"; a.textContent = l.text; row.append(l.pre || "", a); }
+    else { const s = document.createElement("span"); if (l.cls) s.className = l.cls; s.textContent = l.text; row.appendChild(s); }
+    o.appendChild(row);
   }
-  box.scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
 
 function renderList(builds, want) {
   const tb = document.querySelector("#list tbody"); tb.replaceChildren();
-  $("list").hidden = builds.length === 0;
-  $("empty").hidden = builds.length > 0;
+  $("list").hidden = builds.length === 0; $("empty").hidden = builds.length > 0;
   if (!builds.length) $("empty").textContent = t("none");
   for (const b of builds) {
     const tr = document.createElement("tr");
     if (b.digest === want) tr.className = "match";
-    cell(tr, b.time ? new Date(b.time * 1000).toLocaleString() : b.ts);
-    cell(tr, b.commit, "mono"); cell(tr, b.digest, "mono");
-    const td = document.createElement("td"), a = document.createElement("a");
-    a.href = `https://explorer.solana.com/tx/${encodeURIComponent(b.sig)}?cluster=${cluster()}`;
-    a.target = "_blank"; a.rel = "noopener"; a.textContent = b.sig.slice(0, 8) + "…";
-    td.appendChild(a); tr.appendChild(td); tb.appendChild(tr);
+    cell(tr, b.time ? new Date(b.time * 1000).toISOString().replace(".000Z", "Z") : b.ts);
+    cell(tr, b.commit, "m"); cell(tr, b.image, "m"); cell(tr, b.digest, "m");
+    const td = cell(tr, "", "m"), a = document.createElement("a");
+    a.href = txUrl(b.sig); a.target = "_blank"; a.rel = "noopener"; a.textContent = b.sig.slice(0, 8) + "…"; td.appendChild(a);
+    tb.appendChild(tr);
   }
 }
 
 let busy = false;
-async function verify(keyStr, digestStr) {
+async function verify() {
   if (busy) return;
-  const keys = keyStr.split(",").map((k) => k.trim()).filter(Boolean);
-  const want = extractDigest(digestStr);
-  if (!keys.length) return show("bad", "!", [t("nokey")]);
-  if (!want) return show("bad", "!", [t("nodig")]);
+  const keys = $("key").value.split(",").map((k) => k.trim()).filter(Boolean);
+  const want = extractDigest($("digest").value);
+  if (!keys.length) return term("bad", [{ cls: "n", text: "error: " + t("nokey") }, { cls: "d", text: "exit code: 2" }]);
+  if (!want) return term("bad", [{ cls: "n", text: "error: " + t("nodig") }, { cls: "d", text: "exit code: 2" }]);
 
   busy = true;
-  const buttons = document.querySelectorAll("button"); buttons.forEach((b) => (b.disabled = true));
-  show("ok", "⏳ " + t("checking"), []);
-  $("result").className = "ok";
+  const btns = document.querySelectorAll("button"); btns.forEach((b) => (b.disabled = true));
+  term("", [{ cls: "d", text: `$ oath verify --signer ${keys.join(",")} --digest ${want} --network ${net()}` }, { cls: "d", text: t("checking") }]);
+  const cmd = { cls: "d", text: `$ oath verify --signer ${keys.join(",")} --digest ${want} --network ${net()}` };
   try {
     const builds = [];
     for (const key of keys) {
       const sigs = await rpc("getSignaturesForAddress", [key, { limit: 1000 }]);
       for (const s of sigs) {
         if (s.err) continue;
-        for (const rec of parseMemo(s.memo)) builds.push({ ...rec, sig: s.signature, time: s.blockTime });
+        for (const rec of parseMemo(s.memo)) builds.push({ ...rec, signer: key, sig: s.signature, time: s.blockTime });
       }
     }
     renderList(builds, want);
     const hit = builds.find((b) => b.digest === want);
     if (hit) {
-      const when = hit.time ? new Date(hit.time * 1000).toLocaleString() : hit.ts;
-      show("ok", t("okT"), [t("okA")(hit.commit), t("okB")(when, net())], hit.sig);
+      const when = hit.time ? new Date(hit.time * 1000).toISOString().replace(".000Z", "Z") : hit.ts;
+      term("ok", [cmd, { cls: "v", text: "VERIFIED  " + want }, { text: `  built from commit ${hit.commit} (${hit.image})` },
+        { text: `  anchored at ${when} by ${hit.signer}` }, { pre: "  tx ", href: txUrl(hit.sig), text: hit.sig }, { cls: "d", text: "exit code: 0  → deploy proceeds" }]);
     } else {
-      show("bad", t("badT"), [t("badA"), t("badB")]);
+      term("bad", [cmd, { cls: "n", text: "NOT VERIFIED  " + want }, { text: `  No pipeline build with this digest was anchored by ${keys.join(" / ")}.` },
+        { text: "  Refusing to proceed: the image may have been replaced outside the pipeline." }, { cls: "d", text: "exit code: 1  → deploy blocked" }]);
     }
   } catch (e) {
-    show("bad", t("fail"), [e.message]);
+    term("bad", [cmd, { cls: "n", text: t("fail") + ": " + e.message }, { cls: "d", text: "exit code: 2" }]);
   } finally {
-    busy = false; buttons.forEach((b) => (b.disabled = false));
+    busy = false; btns.forEach((b) => (b.disabled = false));
   }
 }
 
-$("demo-good").onclick = () => { $("net").value = "devnet"; $("key").value = DEMO_KEY; $("digest").value = DEMO_GOOD; verify(DEMO_KEY, DEMO_GOOD); };
-$("demo-evil").onclick = () => { $("net").value = "devnet"; $("key").value = DEMO_KEY; $("digest").value = DEMO_EVIL; verify(DEMO_KEY, DEMO_EVIL); };
-$("go").onclick = () => verify($("key").value, $("digest").value);
-
+$("p-good").onclick = () => { $("net").value = "devnet"; $("key").value = DEMO_KEY; $("digest").value = DEMO_GOOD; verify(); };
+$("p-evil").onclick = () => { $("net").value = "devnet"; $("key").value = DEMO_KEY; $("digest").value = DEMO_EVIL; verify(); };
+$("go").onclick = verify;
 applyLang();
 const qs = new URLSearchParams(location.search);
-if (qs.get("key") && qs.get("digest")) { $("own").open = true; verify($("key").value, $("digest").value); }
+if (qs.get("key") && qs.get("digest")) verify();
 </script>
 </body>
 </html>
