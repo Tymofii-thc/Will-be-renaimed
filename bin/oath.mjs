@@ -1,20 +1,24 @@
 #!/usr/bin/env node
 // oath — Proof of Deploy CLI
 //
-//   oath verify --signer <pubkey> --digest sha256:<hex>
+//   oath verify --signer <pubkey[,pubkey…]> --digest sha256:<hex>
 //   oath verify --signer <pubkey> --image ghcr.io/me/app:latest      (digest read from local docker)
 //   oath verify --signer <pubkey> --container prod                   (digest of the RUNNING image)
+//
+// Options: --network devnet|mainnet | --rpc <url>   --max-age <days>   --limit <txs per signer, default 1000>
+//          --no-bind  (don't require the record's image name to match the image being checked)
+// Env:     OATH_SIGNER (comma separated), OATH_NETWORK, SOLANA_RPC
 //
 // Exit codes: 0 = verified, 1 = NOT verified, 2 = usage / network error.
 // Put it right before your deploy step: if it exits non-zero, the deploy stops.
 import { execFileSync } from "node:child_process";
-
-const DEFAULT_RPC = "https://api.devnet.solana.com";
+import { extractDigest, findRecord, repoName, resolveRpc } from "../lib/oath.mjs";
 
 function arg(name) {
   const i = process.argv.indexOf(`--${name}`);
   return i > -1 ? process.argv[i + 1] : undefined;
 }
+const flag = (name) => process.argv.includes(`--${name}`);
 
 function fail(code, msg) {
   console.error(msg);
@@ -29,85 +33,71 @@ function docker(args) {
   }
 }
 
-export function extractDigest(s) {
-  const m = (s || "").match(/sha256:[0-9a-fA-F]{64}/);
-  return m ? m[0].toLowerCase() : null;
+// All "repo@sha256:…" entries of a local image; prefer the one whose repo matches `ref`.
+function pickRepoDigest(lines, ref) {
+  const all = lines.split("\n").map((l) => l.trim()).filter(Boolean);
+  const want = repoName(ref);
+  const chosen = (want && all.find((l) => repoName(l) === want)) || all[0];
+  return chosen ? { digest: extractDigest(chosen), repo: repoName(chosen) } : null;
 }
 
-// RPC returns memo as "[<len>] <text>"; several memos in one tx are joined by "; ".
-export function parseMemo(memo) {
-  if (!memo) return [];
-  return memo
-    .split("; ")
-    .map((m) => m.replace(/^\[\d+\]\s*/, ""))
-    .filter((m) => m.startsWith("pod1|"))
-    .map((m) => {
-      const [, image, commit, digest, ts] = m.split("|");
-      return { image, commit, digest, ts };
-    });
-}
-
-async function rpc(url, method, params) {
-  const r = await fetch(url, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
-  });
-  if (!r.ok) throw new Error(`RPC HTTP ${r.status}`);
-  const j = await r.json();
-  if (j.error) throw new Error(j.error.message);
-  return j.result;
-}
-
-function resolveDigest() {
+function resolveTarget() {
   const direct = arg("digest");
-  if (direct) return extractDigest(direct);
+  if (direct) return { digest: extractDigest(direct), repo: null };
 
+  const fmt = "{{range .RepoDigests}}{{println .}}{{end}}";
   const container = arg("container");
   if (container) {
     const imageId = docker(["inspect", "--format", "{{.Image}}", container]);
-    return extractDigest(docker(["inspect", "--format", "{{range .RepoDigests}}{{println .}}{{end}}", imageId]));
+    return pickRepoDigest(docker(["inspect", "--format", fmt, imageId])) || { digest: null };
   }
-
   const image = arg("image");
   if (image) {
-    return extractDigest(docker(["image", "inspect", "--format", "{{range .RepoDigests}}{{println .}}{{end}}", image]));
+    return pickRepoDigest(docker(["image", "inspect", "--format", fmt, image]), image) || { digest: null };
   }
-  return null;
+  return { digest: null };
 }
 
 async function verify() {
-  const signer = arg("signer") || process.env.OATH_SIGNER || process.env.POD_SIGNER;
-  const rpcUrl = arg("rpc") || process.env.SOLANA_RPC || DEFAULT_RPC;
-  const limit = Number(arg("limit") || 100);
+  const signers = (arg("signer") || process.env.OATH_SIGNER || process.env.POD_SIGNER || "")
+    .split(",").map((s) => s.trim()).filter(Boolean);
+  if (!signers.length) fail(2, "Missing --signer <public key of the CI signer> (or OATH_SIGNER). Comma-separate several to accept a rotation.");
 
-  if (!signer) fail(2, "Missing --signer <public key of the CI signer> (or OATH_SIGNER).");
-  const want = resolveDigest();
-  if (!want) fail(2, "Could not determine a sha256 digest. Pass --digest, --image or --container.");
-
-  let sigs;
+  let rpcUrl;
   try {
-    sigs = await rpc(rpcUrl, "getSignaturesForAddress", [signer, { limit }]);
+    rpcUrl = resolveRpc({ rpc: arg("rpc"), network: arg("network") });
+  } catch (e) {
+    fail(2, e.message);
+  }
+
+  const { digest: want, repo } = resolveTarget();
+  if (!want) fail(2, "Could not determine a sha256 digest (no registry digest on the local image?). Pass --digest, or push/pull the image first.");
+
+  const maxAgeDays = arg("max-age");
+  let rec;
+  try {
+    rec = await findRecord({
+      signers,
+      digest: want,
+      rpcUrl,
+      limit: Number(arg("limit") || 1000),
+      image: flag("no-bind") ? undefined : repo,
+      maxAgeSeconds: maxAgeDays ? Number(maxAgeDays) * 86400 : undefined,
+    });
   } catch (e) {
     fail(2, `RPC lookup failed: ${e.message}`);
   }
 
-  for (const s of sigs) {
-    if (s.err) continue;
-    for (const rec of parseMemo(s.memo)) {
-      if (rec.digest === want) {
-        const when = s.blockTime ? new Date(s.blockTime * 1000).toISOString() : rec.ts;
-        console.log(`VERIFIED  ${want}`);
-        console.log(`  built from commit ${rec.commit} (${rec.image})`);
-        console.log(`  anchored at ${when}`);
-        console.log(`  tx ${s.signature}`);
-        process.exit(0);
-      }
-    }
+  if (rec) {
+    console.log(`VERIFIED  ${want}`);
+    console.log(`  built from commit ${rec.commit} (${rec.image})`);
+    console.log(`  anchored at ${rec.anchoredAt} by ${rec.signer}`);
+    console.log(`  tx ${rec.signature}`);
+    process.exit(0);
   }
 
   console.error(`NOT VERIFIED  ${want}`);
-  console.error(`  No pipeline build with this digest was anchored by ${signer}.`);
+  console.error(`  No pipeline build with this digest${repo ? ` for ${repo}` : ""} was anchored by ${signers.join(" / ")}${maxAgeDays ? ` in the last ${maxAgeDays} days` : ""}.`);
   console.error("  Refusing to proceed: the image may have been replaced outside the pipeline.");
   process.exit(1);
 }
@@ -116,6 +106,6 @@ const cmd = process.argv[2];
 if (cmd === "verify") {
   await verify();
 } else {
-  console.error("Usage: oath verify --signer <pubkey> (--digest sha256:… | --image <ref> | --container <name>) [--rpc <url>]");
+  console.error("Usage: oath verify --signer <pubkey[,pubkey]> (--digest sha256:… | --image <ref> | --container <name>) [--network devnet|mainnet | --rpc <url>] [--max-age <days>] [--no-bind]");
   process.exit(2);
 }
