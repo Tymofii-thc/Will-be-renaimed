@@ -1,4 +1,10 @@
-# Oath
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="verifier/assets/logo-white.svg">
+    <img src="verifier/assets/logo-black.svg" alt="oath." height="64">
+  </picture>
+</p>
+
 
 *Proof of Deploy: не деплой того, чого не збирав пайплайн.*
 
