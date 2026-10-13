@@ -31,6 +31,8 @@ spec:
             - { name: OATH_NETWORK, value: "__OATH_NETWORK__" }    # devnet | mainnet
             - { name: OATH_MODE, value: "enforce" }                # audit = allow but warn
             - { name: OATH_PIN, value: "true" }                    # rewrite tag -> verified digest
+            - { name: OATH_QUORUM, value: "__OATH_QUORUM__" }      # distinct signers that must have anchored the digest (2 = CI key + approver key)
+            - { name: OATH_ATTEST_REPO, value: "__OATH_ATTEST_REPO__" }  # owner/repo whose GitHub Actions must have signed a build attestation (empty = not required)
           ports: [{ containerPort: 8443 }]
           readinessProbe:
             httpGet: { path: /readyz, port: 8443, scheme: HTTPS }

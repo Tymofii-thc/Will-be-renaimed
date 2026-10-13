@@ -79,3 +79,26 @@ test("parseRef", () => {
   assert.equal(parseRef(`ghcr.io/me/app@${D1}`).digest, D1);
   assert.equal(parseRef("localhost:5000/x/app").registry, "localhost:5000");
 });
+
+test("attestation required: anchored but unattested image is denied, attested one passes", async () => {
+  const seen = [];
+  const h = makeHandler({ signers: ["S"], rpcUrl: "x", attestRepo: "me/app", deps: { ...deps,
+    verifyAttestation: async ({ digest, repo }) => { seen.push(repo); return digest === D1 ? { ok: true } : { ok: false, reason: "no build attestation" }; } } });
+  anchored.add(D2);
+  try {
+    const bad = await h(pod(["ghcr.io/me/evil:latest"]));
+    assert.equal(bad.response.allowed, false);
+    assert.match(bad.response.status.message, /build attestation failed: no build attestation/);
+    const good = await h(pod(["ghcr.io/me/app:v1"]));
+    assert.equal(good.response.allowed, true);
+  } finally { anchored.delete(D2); }
+  assert.deepEqual(seen, ["me/app", "me/app"]);
+});
+
+test("quorum is passed to the lookup", async () => {
+  let got;
+  const h = makeHandler({ signers: ["A", "B"], rpcUrl: "x", quorum: 2, deps: { ...deps, findRecord: async (o) => { got = o.quorum; return null; } } });
+  const r = await h(pod(["ghcr.io/me/app:v1"]));
+  assert.equal(got, 2);
+  assert.match(r.response.status.message, /2 of the trusted signer/);
+});

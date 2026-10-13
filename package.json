@@ -11,9 +11,12 @@
   "license": "ISC",
   "type": "module",
   "dependencies": {
-    "@solana/web3.js": "^1.99.0"
+    "sigstore": "^5.0.0"
   },
   "bin": {
     "oath": "bin/oath.mjs"
+  },
+  "optionalDependencies": {
+    "@solana/web3.js": "^1.99.0"
   }
 }

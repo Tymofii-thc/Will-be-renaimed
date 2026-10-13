@@ -99,3 +99,14 @@ test("pagination: record older than one page is still found", async () => {
 test("RPC failure throws (caller must treat as deny, not as verified)", async () => {
   await assert.rejects(() => findRecord({ signers: ["S"], digest: D1, rpcUrl: "http://127.0.0.1:1" }));
 });
+
+test("quorum: needs N distinct signers; one signer repeating does not count twice", async () => {
+  const m = await mockRpc({ A: [tx(1, memo("a/b", D1)), tx(2, memo("a/b", D1))], B: [tx(3, memo("a/b", D1))], C: [] });
+  try {
+    assert.equal(await findRecord({ signers: ["A", "C"], digest: D1, rpcUrl: m.url, quorum: 2 }), null, "A alone twice is still one signer");
+    const ok = await findRecord({ signers: ["A", "B", "C"], digest: D1, rpcUrl: m.url, quorum: 2 });
+    assert.deepEqual([...ok.signers].sort(), ["A", "B"]);
+    assert.equal(await findRecord({ signers: ["A"], digest: D1, rpcUrl: m.url, quorum: 2 }), null, "quorum above signer count can never pass");
+    assert.ok(await findRecord({ signers: ["A", "A"], digest: D1, rpcUrl: m.url, quorum: 1 }));
+  } finally { m.close(); }
+});
