@@ -1,3 +1,6 @@
 node_modules/
 *.out
 .env
+
+# private notes, never committed
+CLAUDE.md
