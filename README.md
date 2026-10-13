@@ -30,7 +30,7 @@ deploy ──► docker pull ──► oath verify ──► ✔ exit 0  → dep
 ```bash
 npx --yes --allow-git=all github:Tymofii-thc/oath init      # or: node bin/oath.mjs init  in a clone
 ```
-`oath init` creates a key in `.oath/ci-key.json` (the secret is never printed and `.oath/` goes into `.gitignore`), asks the devnet faucet for SOL, and if the public faucet refuses (it often does) it prints the link and **waits until you've funded the key**. It then prints exactly what to add to your repository: the secret `SOLANA_SECRET_KEY`, the variable `OATH_SIGNER`, and the two workflow steps below. With the GitHub CLI installed and logged in, `oath init --set-github` sets the secret and variable for you.
+`oath init` creates a key in `.oath/ci-key.json` (the secret is never printed and `.oath/` goes into `.gitignore`), asks the devnet faucet for SOL, and if the public faucet refuses (it often does) it prints the link and **waits until you've funded the key**. It then prints exactly what to add to your repository: the secret `SOLANA_SECRET_KEY`, the variable `OATH_SIGNER`, and the two workflow steps below. With the GitHub CLI installed and logged in, `oath init --set-github` sets the secret and variable for you (checked against a stub `gh`, not yet against a real one).
 
 **2. Record after the build** (in your workflow):
 ```yaml
@@ -117,12 +117,12 @@ Everything works the same way: `--network mainnet` (CLI), `OATH_NETWORK=mainnet`
 ## Vulnerability scanning (optional)
 Oath proves provenance, not safety. To avoid recording vulnerable images, set the repository variable `OATH_SCAN=true`: Trivy then checks the image for fixable CRITICAL vulnerabilities before recording, and if it finds any no record is written, so the `deploy` step fails.
 
-## Demo (3 minutes)
-1. **Problem** (20 s): "How do you prove production runs what the pipeline built?"
-2. **Normal deploy** (40 s): push → build → record on Solana (show the transaction in Explorer) → `oath verify` says VERIFIED → deploy proceeds.
-3. **Attack** (60 s): build a different image and push it to the same tag, bypassing CI; then `docker pull` + `oath verify`: **NOT VERIFIED, exit 1, deploy stopped.** A scripted version that runs against a local registry is in `demo/demo.sh`.
-4. **Why a blockchain** (30 s): neither a CI admin nor someone with registry access can rewrite the record.
-5. **Next** (30 s): mainnet in CI, hardware-wallet approvers, verifying attestations inside the webhook for private registries.
+## Run the demo yourself
+A scripted version of the whole story: it builds an image, records it on Solana, verifies it, then swaps the image under the same tag and shows the check fail.
+```bash
+SOLANA_SECRET_KEY="$(cat .oath/ci-key.json)" demo/demo.sh     # needs docker and a funded devnet key (see `oath init`)
+```
+Expect `VERIFIED` with exit code 0, then `NOT VERIFIED` with exit code 1. The same two checks are one click each in the [live verifier](https://tymofii-thc.github.io/oath/).
 
 ## Limitations (we say them before you ask)
 - **CI key.** Whoever steals `SOLANA_SECRET_KEY` can record a forged digest. A quorum with an independent approver key closes this, but it needs a human in the loop and a separately stored key; without a quorum you only get mitigations (rotation, revocation, `--max-age`, image binding). Hardware keys and Ledger signing are **not implemented**.

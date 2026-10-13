@@ -70,6 +70,7 @@ Needs docker, kind and kubectl. Expect six `PASS` lines and `ALL PASSED` (admit,
 - Mainnet is supported in code but has not been run in CI.
 - Hardware-wallet signing is not implemented.
 - `--attest` for **private** repositories is untested.
+- `oath init --set-github` was checked against a stub `gh` only, not a real GitHub CLI.
 - The kubelet needs its own `imagePullSecrets` for private images; oath only needs `OATH_REGISTRY_AUTH` to read their digests.
 - Only the author has run this so far. You are the first outside tester.
 

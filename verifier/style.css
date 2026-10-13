@@ -259,3 +259,6 @@ tbody th { font-weight: 500; min-width: 220px; }
 }
 
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* dark scrollbars instead of the browser's light default */
+* { scrollbar-color: var(--line) transparent; }

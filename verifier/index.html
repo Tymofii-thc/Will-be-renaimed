@@ -127,9 +127,8 @@
         <div role="tabpanel" id="panel-gh" aria-labelledby="tab-gh" class="tabpanel" tabindex="0">
           <p class="muted" data-i18n="gh_p">Add the secret SOLANA_SECRET_KEY and the variable OATH_SIGNER (the public key) to the repository. For devnet SOL use faucet.solana.com.</p>
           <div class="code-wrap"><button type="button" class="copy" data-copy="code-gh" data-i18n="copy">Copy</button>
-<pre class="code-block" id="code-gh"><code># once: create the CI key (prints public and secret key)
-npm install
-node scripts/keygen.mjs
+<pre class="code-block" id="code-gh"><code># once: create the CI key (writes .oath/ci-key.json, funds it, prints what to add)
+npx --yes --allow-git=all github:Tymofii-thc/oath init
 
 # in your workflow, after the build: anchor the digest
 - uses: Tymofii-thc/oath@main
@@ -138,20 +137,27 @@ node scripts/keygen.mjs
     digest: ${{ steps.build.outputs.digest }}
     secret-key: ${{ secrets.SOLANA_SECRET_KEY }}
 
-# before the deploy: verify (a failed check fails the job)
-- run: docker pull ghcr.io/${{ github.repository }}:latest
-- run: npx --yes --allow-git=all github:Tymofii-thc/oath verify --signer "${{ vars.OATH_SIGNER }}" --image ghcr.io/${{ github.repository }}:latest</code></pre></div>
+# before the deploy: pulls the image and fails the job if there is no record
+- uses: Tymofii-thc/oath/verify@main
+  with:
+    signer: ${{ vars.OATH_SIGNER }}
+    image: ghcr.io/${{ github.repository }}:latest</code></pre></div>
         </div>
 
         <div role="tabpanel" id="panel-cli" aria-labelledby="tab-cli" class="tabpanel" tabindex="0" hidden>
           <p class="muted" data-i18n="cli_p">No dependencies. Exit codes: 0 verified, 1 not verified, 2 error (network, arguments).</p>
           <div class="code-wrap"><button type="button" class="copy" data-copy="code-cli" data-i18n="copy">Copy</button>
-<pre class="code-block" id="code-cli"><code>node bin/oath.mjs verify --signer &lt;pubkey&gt; --digest sha256:…
+<pre class="code-block" id="code-cli"><code>node bin/oath.mjs init                                           # create and fund a CI key, print the next steps
+node bin/oath.mjs verify --signer &lt;pubkey&gt; --digest sha256:…
 node bin/oath.mjs verify --signer &lt;pubkey&gt; --image ghcr.io/me/app:latest
 node bin/oath.mjs verify --signer &lt;pubkey&gt; --container prod    # the image running NOW
+node bin/oath.mjs audit  --signer &lt;pubkey&gt;                      # every Pod running in the current cluster
 
 # several signers (key rotation) and a maximum record age
 node bin/oath.mjs verify --signer &lt;a&gt;,&lt;b&gt; --max-age 30 --image ghcr.io/me/app:latest
+
+# a second signer must also have recorded it, plus a Sigstore build attestation
+node bin/oath.mjs verify --signer &lt;ci&gt;,&lt;approver&gt; --quorum 2 --attest me/app --image ghcr.io/me/app:latest
 
 # mainnet
 node bin/oath.mjs verify --signer &lt;pubkey&gt; --network mainnet --image ghcr.io/me/app:latest</code></pre></div>
@@ -248,7 +254,7 @@ OATH_REGISTRY_AUTH='{"ghcr.io":{"username":"u","password":"token"}}'</code></pre
     <span class="dot-sep" aria-hidden="true">·</span>
     <a class="link" href="https://github.com/Tymofii-thc/oath" rel="noopener">GitHub</a>
     <span class="dot-sep" aria-hidden="true">·</span>
-    <a class="link" href="https://github.com/Tymofii-thc/oath" rel="noopener" data-i18n="license">License: see repository</a>
+    <a class="link" href="https://github.com/Tymofii-thc/oath" rel="noopener" data-i18n="license">MIT license</a>
   </div>
 </footer>
 

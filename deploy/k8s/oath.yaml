@@ -29,7 +29,9 @@ spec:
           env:
             - { name: OATH_SIGNER, value: "__OATH_SIGNER__" }      # comma-separated: list old + new key during rotation
             - { name: OATH_NETWORK, value: "__OATH_NETWORK__" }    # devnet | mainnet
-            - { name: OATH_MODE, value: "enforce" }                # audit = allow but warn
+            - { name: OATH_MODE, value: "__OATH_MODE__" }          # enforce, or audit = allow but warn
+            - name: OATH_REGISTRY_AUTH                             # private registries, from the Secret that install.sh creates when OATH_REGISTRY_AUTH is set
+              valueFrom: { secretKeyRef: { name: oath-registry-auth, key: auth, optional: true } }
             - { name: OATH_PIN, value: "true" }                    # rewrite tag -> verified digest
             - { name: OATH_QUORUM, value: "__OATH_QUORUM__" }      # distinct signers that must have anchored the digest (2 = CI key + approver key)
             - { name: OATH_ATTEST_REPO, value: "__OATH_ATTEST_REPO__" }  # owner/repo whose GitHub Actions must have signed a build attestation (empty = not required)
