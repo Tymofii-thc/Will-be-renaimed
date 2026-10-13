@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark light">
+<title>oath. approve - second signature with your wallet</title>
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="style.css">
+<style>
+  .approve-grid { display: grid; gap: 24px; grid-template-columns: 1fr; max-width: 760px; }
+  .warn { border: 1px solid #b08800; border-radius: 10px; padding: 12px 16px; color: var(--muted); }
+  .addr { overflow-wrap: anywhere; }
+  #out { min-height: 6rem; }
+</style>
+<script src="assets/vendor/solana-web3.min.js"></script>
+<script src="approve.js" defer></script>
+</head>
+<body>
+<header class="site-header">
+  <div class="wrap bar">
+    <a class="brand" href="./" aria-label="oath, back to the main page">oath.</a>
+    <nav class="bar-right" aria-label="Site"><a class="link" href="./">Verifier</a><a class="link" href="https://github.com/Tymofii-thc/oath">GitHub</a></nav>
+  </div>
+</header>
+
+<main class="wrap section">
+  <h1>Approve a build with your wallet</h1>
+  <p class="lead">A second, independent signature for the signer quorum (<code>--quorum 2</code>): a stolen CI key alone can no longer authorise an image. Your wallet signs one Memo transaction; this page never sees your private key. Wallets that use a Ledger (Phantom, Solflare) work the same way.</p>
+
+  <div class="approve-grid">
+    <div class="warn" role="note">Before you approve, compare the digest with the one printed by the CI run of the build you are approving. Approving a digest you did not check defeats the purpose.</div>
+
+    <form id="aform" class="panel" novalidate autocomplete="off">
+      <div class="field">
+        <label for="a-mode">Action</label>
+        <select id="a-mode"><option value="approve">Approve a build</option><option value="revoke">Revoke a digest</option></select>
+      </div>
+      <div class="field">
+        <label for="a-net">Network</label>
+        <select id="a-net"><option value="devnet">devnet</option><option value="mainnet">mainnet</option></select>
+      </div>
+      <div class="field" id="f-image">
+        <label for="a-image">Image name</label>
+        <input id="a-image" class="mono" type="text" spellcheck="false" placeholder="ghcr.io/owner/app" autocomplete="off">
+      </div>
+      <div class="field" id="f-commit">
+        <label for="a-commit">Commit</label>
+        <input id="a-commit" class="mono" type="text" spellcheck="false" placeholder="3f9a1c0d2b7e (first 12 characters are used)" autocomplete="off">
+      </div>
+      <div class="field">
+        <label for="a-digest">Image digest</label>
+        <input id="a-digest" class="mono" type="text" spellcheck="false" placeholder="sha256:…" autocomplete="off">
+      </div>
+      <div class="field" id="f-reason" hidden>
+        <label for="a-reason">Reason</label>
+        <input id="a-reason" type="text" maxlength="100" placeholder="why this digest is bad" autocomplete="off">
+      </div>
+      <p id="a-err" class="err" hidden role="alert"></p>
+      <p class="small muted">Memo that will be signed:</p>
+      <pre class="code-block mono addr" id="a-preview"></pre>
+      <div class="presets">
+        <button type="button" class="btn ghost" id="a-connect">Connect wallet</button>
+        <span id="a-wallet" class="small muted addr">not connected</span>
+      </div>
+      <button type="submit" class="btn primary wide" id="a-sign" disabled>Sign with wallet</button>
+    </form>
+
+    <div class="term" id="a-term" role="status" aria-live="polite">
+      <div class="term-bar"><span class="small muted">result</span></div>
+      <div class="term-body" id="out"><span class="dim">Connect a wallet, check the memo above, then sign.</span></div>
+    </div>
+  </div>
+</main>
+<noscript><p class="wrap noscript">This page needs JavaScript to talk to your wallet.</p></noscript>
+</body>
+</html>
