@@ -6,7 +6,7 @@
 //   oath verify --signer <pubkey> --container prod                   (digest of the RUNNING image)
 //   oath init   [--out .oath/ci-key.json] [--no-wait] [--set-github]      (create a CI key, fund it on devnet, print the next steps)
 //   oath revoke --digest sha256:<hex> --reason "<text>"   (SOLANA_SECRET_KEY or --key-file; a revoked digest never verifies again)
-//   oath audit  --signer <pubkey> [--file pods.json] [--skip-namespaces a,b]   (every Pod running in the current kube context)
+//   oath audit  --signer <pubkey> [--file pods.json | --in-cluster] [--skip-namespaces a,b]   (every Pod running in the current kube context, or from inside a Pod)
 //
 // Options: --network devnet|mainnet | --rpc <url>   --max-age <days>   --limit <txs per signer, default 1000>
 //          --quorum <N>  at least N distinct signers must have anchored the digest (a stolen CI key alone is then not enough)
@@ -21,7 +21,7 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync, appendFileSync } fr
 import { dirname } from "node:path";
 import { extractDigest, checkRecord, repoName, resolveRpc } from "../lib/oath.mjs";
 import { sendMemo } from "../lib/memo.mjs";
-import { collectImages } from "../lib/audit.mjs";
+import { collectImages, listPodsInCluster } from "../lib/audit.mjs";
 import { verifyAttestation } from "../lib/attest.mjs";
 
 function arg(name) {
@@ -144,17 +144,21 @@ async function audit() {
   let rpcUrl;
   try { rpcUrl = resolveRpc({ rpc: arg("rpc"), network: arg("network") }); } catch (e) { fail(2, e.message); }
 
-  let raw;
-  const file = arg("file");
-  try {
-    raw = file
-      ? readFileSync(file === "-" ? 0 : file, "utf8")
-      : execFileSync("kubectl", ["get", "pods", "-A", "-o", "json"], { encoding: "utf8", maxBuffer: 256 * 1024 * 1024 });
-  } catch (e) {
-    fail(2, `cannot read pods: ${(e.stderr || e.message).toString().trim()}`);
-  }
   let list;
-  try { list = JSON.parse(raw); } catch { fail(2, "pods input is not valid JSON"); }
+  if (flag("in-cluster")) {
+    try { list = await listPodsInCluster(); } catch (e) { fail(2, `cannot list pods: ${e.message}`); }
+  } else {
+    let raw;
+    const file = arg("file");
+    try {
+      raw = file
+        ? readFileSync(file === "-" ? 0 : file, "utf8")
+        : execFileSync("kubectl", ["get", "pods", "-A", "-o", "json"], { encoding: "utf8", maxBuffer: 256 * 1024 * 1024 });
+    } catch (e) {
+      fail(2, `cannot read pods: ${(e.stderr || e.message).toString().trim()}`);
+    }
+    try { list = JSON.parse(raw); } catch { fail(2, "pods input is not valid JSON"); }
+  }
 
   const skip = (arg("skip-namespaces") ?? "kube-system,kube-public,kube-node-lease,oath-system").split(",").filter(Boolean);
   const images = collectImages(list, { skipNamespaces: skip });

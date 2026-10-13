@@ -1,0 +1,58 @@
+# Periodic audit of Pods that are ALREADY running (the webhook only sees new ones).
+# Applied by deploy/install.sh when OATH_AUDIT_SCHEDULE is set. A Job that finds an unverified or revoked image exits 1 and shows up as Failed:
+#   kubectl -n oath-system get jobs        kubectl -n oath-system logs job/<name>
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: oath-audit
+  namespace: oath-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: oath-audit
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: oath-audit
+roleRef: { apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: oath-audit }
+subjects:
+  - { kind: ServiceAccount, name: oath-audit, namespace: oath-system }
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: oath-audit
+  namespace: oath-system
+spec:
+  schedule: "__OATH_AUDIT_SCHEDULE__"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      template:
+        spec:
+          serviceAccountName: oath-audit
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            seccompProfile: { type: RuntimeDefault }
+          containers:
+            - name: audit
+              image: __OATH_IMAGE__
+              imagePullPolicy: IfNotPresent
+              args: ["bin/oath.mjs", "audit", "--in-cluster", "--signer", "__OATH_SIGNER__", "--network", "__OATH_NETWORK__", "--quorum", "__OATH_QUORUM__"]
+              resources:
+                requests: { cpu: 20m, memory: 64Mi }
+                limits: { memory: 256Mi }
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities: { drop: [ALL] }
