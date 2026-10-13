@@ -9,29 +9,26 @@
 Це для хакатону Colosseum (Crypto World's Fair), дедлайн у вівторок 2026-10-13 близько 9:00 за варшавським часом (точну годину перевірити на формі сабміту). Користувач хоче не «іграшку», а реальний інструмент: підключається за кілька рядків і сам блокує деплой. Azure не використовуємо (дорого): GitHub Actions + GHCR + GitHub Pages.
 
 ## Структура
-- `bin/oath.mjs` — CLI `oath verify --signer <pubkey> (--digest | --image | --container) [--rpc]`. Коди виходу: 0 перевірено, 1 не перевірено, 2 помилка. Залежностей нема.
-- `scripts/anchor.mjs` — пише запис у Solana (потрібен `SOLANA_SECRET_KEY`, опційно `SOLANA_RPC`).
-- `scripts/keygen.mjs` — генерує ключ CI і пробує devnet airdrop.
-- `scripts/running-digest.sh` — digest образу, що реально працює в контейнері.
-- `action.yml` — композитний GitHub Action (обгортка над anchor.mjs).
-- `.github/workflows/deploy.yml` — build → anchor (через `uses: ./`) → deploy-job, який тягне образ і викликає `oath verify`. Потрібні секрет `SOLANA_SECRET_KEY` і змінна репозиторію `OATH_SIGNER` (публічний ключ).
-- `verifier/index.html` — та сама перевірка в браузері (читає devnet RPC), для демо.
-- `app/` — демо-сервіс і Dockerfile.
+- `bin/oath.mjs`: CLI `oath verify|audit` (`--signer a,b`, `--network`, `--rpc`, `--max-age`, `--quorum`, `--attest owner/repo`, `--no-bind`). Коди виходу: 0 перевірено, 1 не перевірено, 2 помилка.
+- `lib/`: `oath.mjs` (пошук запису, кворум, пагінація), `registry.mjs` (тег → digest), `admission.mjs` (логіка webhook), `attest.mjs` (Sigstore/SLSA), `audit.mjs` (`oath audit`).
+- `bin/oath-webhook.mjs` + `deploy/` (`install.sh`, `k8s/oath.yaml`): Kubernetes mutating admission webhook (pin тегу в digest, fail closed).
+- `scripts/anchor.mjs` пише запис у Solana (Memo), `scripts/keygen.mjs` генерує ключ, `action.yml` композитний GitHub Action.
+- `.github/workflows/`: `deploy.yml` (build → attest → anchor → deploy, Trivy за `OATH_SCAN`), `release-webhook.yml`, `pages.yml`, `anchor-mainnet.yml` (ручний).
+- `verifier/`: статичний сайт (index.html, style.css, app.js, assets/), деплоїться на GitHub Pages: https://tymofii-thc.github.io/oath/
+- `test/`: юніт-тести (`npm test`) і `e2e-kind.sh`. `demo/demo.sh`: сценарій демо. `app/`: демо-сервіс.
+- Формат запису `pod1|<image>|<commit12>|<digest>|<ISO час>` лишився від старої назви; не міняти, бо зламає наявні записи.
 
-## Що перевірено
-- Синтаксис усіх скриптів; YAML парситься.
-- Збірка й підпис memo-транзакції офлайн.
-- `oath verify` на локальному mock RPC: збіг, незбіг, невдала транзакція (ігнорується), немає signer, немає digest, RPC недоступний.
-- Сторінка перевірки в Chromium на mock RPC (зелене/червоне).
+## Що перевірено (наживо)
+- Запис і перевірка на Solana devnet; кворум із двома ключами; `--attest` на справжній атестації нашого CI (і негативні кейси).
+- Docker: `--image`, `--container`, `running-digest.sh`. Kubernetes (kind): допуск, pin, відмова, блокування Deployment, fail-closed (`test/e2e-kind.sh`), `oath audit`.
+- GitHub Actions: збірка → GHCR → атестація → запис → перевірка → деплой; `npx --allow-git=all github:Tymofii-thc/oath verify`.
+- Сайт: jsdom проти живого devnet (обидві мови), Firefox headless (світла/темна тема, 390px).
 
-## Що НЕ перевірено (робити першим)
-- Реальний запис у Solana devnet (з середовища, де це писалось, мережа була недоступна) і airdrop.
-- Повний прогін workflow на GitHub (GHCR, `uses: ./`, `npm ci` в action).
-- Команда `npx github:Tymofii-thc/oath verify …` з README.
-- `scripts/running-digest.sh` і `--image/--container` з реальним Docker.
+## Що НЕ перевірено / не зроблено
+- Мейннет у CI (код підтримує; ручний workflow `anchor-mainnet`, потрібен баланс SOL).
+- Підпис Ledger/апаратним гаманцем (не реалізовано).
+- Приватні реєстри в webhook (`OATH_REGISTRY_AUTH`), `--attest` для приватних репозиторіїв.
+- Сайт у справжньому Chrome/Safari і на телефоні.
 
 ## Далі
-1. Прогнати кроки з README на реальному репозиторії, виправити, що впаде.
-2. Підставити `<owner>` у README (зроблено: Tymofii-thc/oath).
-3. Зняти демо на 3 хвилини за сценарієм з README, написати опис проєкту для форми сабміту.
-4. Якщо лишиться час: admission-перевірка (блокування запуску без запису), мейннет через `--rpc`.
+Відео демо (3 хв, сценарій у README), презентація, опис для форми сабміту. Далі за часом: мейннет у CI, перевірка атестацій у webhook для приватних реєстрів.

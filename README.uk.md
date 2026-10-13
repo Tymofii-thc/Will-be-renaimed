@@ -1,0 +1,137 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="verifier/assets/logo-white.svg">
+    <img src="verifier/assets/logo-black.svg" alt="oath." height="64">
+  </picture>
+</p>
+
+[English](README.md) · **Українська**
+
+*Proof of Deploy: не деплой того, чого не збирав пайплайн.*
+
+Інструмент, який не дає запустити в проді образ, що не збирав ваш пайплайн.
+
+**Проблема.** Підмінений образ у реєстрі, ручний `docker push` у обхід CI, скомпрометований токен: ніхто не помітить, що в проді працює не те, що зібрали. Це supply chain атака.
+
+**Рішення.** Кожна збірка записує в Solana незмінний запис `коміт → digest → час` (стандартна Memo-програма, власного смарт-контракту нема). Перед деплоєм `oath verify` звіряє digest образу з цими записами і **зупиняє деплой**, якщо запису нема.
+
+```
+build ──► image digest ──► Solana Memo tx (підпис CI-ключа)
+                                  │
+deploy ──► docker pull ──► oath verify ──► ✔ exit 0  → деплой іде
+                                         ✘ exit 1  → деплой зупинено
+```
+
+## Підключення за 3 кроки
+
+**1. Ключ CI** (один раз):
+```bash
+npm install
+node scripts/keygen.mjs      # друкує public + secret key і пробує devnet airdrop
+```
+Додай у репозиторій: секрет `SOLANA_SECRET_KEY` (secret key), змінну `OATH_SIGNER` (public key). SOL для devnet: https://faucet.solana.com
+
+**2. Запис після збірки** (у вашому workflow):
+```yaml
+- uses: Tymofii-thc/oath@main
+  with:
+    image: ghcr.io/${{ github.repository }}
+    digest: ${{ steps.build.outputs.digest }}
+    secret-key: ${{ secrets.SOLANA_SECRET_KEY }}
+```
+
+**3. Перевірка перед деплоєм:**
+```yaml
+- run: docker pull ghcr.io/${{ github.repository }}:latest
+- run: npx --yes --allow-git=all github:Tymofii-thc/oath verify --signer "${{ vars.OATH_SIGNER }}" --image ghcr.io/${{ github.repository }}:latest
+```
+`--allow-git=all` потрібен для npm 12+, який за замовчуванням блокує пакети з git (`EALLOWGIT`); на старіших npm прапорець нічого не змінює. Альтернатива без npx: `actions/checkout` цього репозиторію і `node bin/oath.mjs verify …` (залежностей нема).
+
+Цей репозиторій уже використовує сам себе так: див. `.github/workflows/deploy.yml`.
+
+## CLI
+```bash
+node bin/oath.mjs verify --signer <pubkey> --digest sha256:…
+node bin/oath.mjs verify --signer <pubkey> --image ghcr.io/me/app:latest
+node bin/oath.mjs verify --signer <pubkey> --container prod      # образ, що ЗАРАЗ працює
+```
+Коди виходу: `0` перевірено, `1` не перевірено, `2` помилка (мережа, аргументи). Для мейннету додай `--rpc <url>` або змінну `SOLANA_RPC` (і те саме для кроку 2 через вхід `rpc`).
+
+`verifier/index.html` це та сама перевірка у браузері, для демо й для людей, які не лізуть у термінал. Живий: https://tymofii-thc.github.io/oath/
+
+## Захист кластера (Kubernetes admission webhook)
+Перевірка в CI-кроці не зупинить того, хто робить `kubectl apply` в обхід пайплайну. Тому є webhook, який стоїть у самому кластері:
+
+```bash
+OATH_SIGNER=<public key> OATH_NETWORK=mainnet deploy/install.sh   # генерує TLS, ставить webhook у namespace oath-system
+kubectl run t --image=nginx        # → denied: no pipeline build anchored by the trusted signer(s)
+```
+- Для кожного нового Pod бере всі образи (`initContainers`, `containers`, `ephemeralContainers`), резолвить тег у digest через реєстр і шукає запис у Solana. Нема запису → Pod не створюється (в тому числі зі створених Deployment/Job).
+- **Підмінює тег на перевірений digest** (`app:latest` → `app@sha256:…`), тож кубелет витягне саме те, що перевірено; тег між перевіркою і pull змінити не вдасться.
+- **Fail closed:** недоступний реєстр, RPC чи сам webhook = Pod не проходить (`failurePolicy: Fail`). Виняток: `kube-system`, `kube-public`, `kube-node-lease` і namespace `oath-system` (щоб не заблокувати кластер).
+- `OATH_MODE=audit` дозволяє все, але повертає попередження: зручно для першого впровадження.
+- `OATH_FAILURE_POLICY=Ignore deploy/install.sh` міняє `failurePolicy` на `Ignore` (доступність важливіша за блокування; тоді користуйся `oath audit`). Webhook працює у 2 репліках із PodDisruptionBudget.
+- Приватні реєстри: `OATH_REGISTRY_AUTH='{"ghcr.io":{"username":"u","password":"token"}}'`.
+- Перевірено в реальному кластері (kind): `test/e2e-kind.sh` (допуск, pin, відмова, блокування Deployment, fail-closed при вимкненому webhook).
+
+## Pod-и, що вже працюють
+Webhook перевіряє лише нові Pod-и. Для вже запущених:
+```bash
+oath audit --signer <pubkey> --network mainnet [--skip-namespaces kube-system,…] [--file pods.json]
+```
+Бере всі контейнери поточного kube-контексту (`kubectl get pods -A -o json`, реальні digest з `imageID`), звіряє із записами, виходить з кодом 1, якщо є непідтверджені. Перевірено в kind: pod-и, створені до webhook, знаходяться (`alpine` VERIFIED, `nginx` NOT VERIFIED).
+
+## Атестація збірки (SLSA provenance)
+Запис у Solana доводить «підписант зафіксував digest», а не «збірка була чесною». Тому CI додатково випускає атестацію походження збірки через GitHub/Sigstore (keyless, без довгоживучого ключа), і `oath verify` може її вимагати:
+```bash
+oath verify --signer <pubkey> --image ghcr.io/me/app:latest --attest me/app
+```
+Перевіряється: криптографічний підпис і запис у журналі прозорості Sigstore (бібліотека `sigstore`, ланцюжок Fulcio), що підписала саме GitHub Actions репозиторію `me/app` (workflow-ідентичність), і що підписане твердження стосується саме цього digest та образу. Немає атестації, чужий репозиторій, інший digest або помилка API дають `NOT VERIFIED`/код 2, а не «ок». Для webhook: `OATH_ATTEST_REPO=me/app deploy/install.sh`. Перевірено на справжній атестації нашого CI (і негативні кейси: чужий репозиторій, образ без атестації).
+
+## Кворум підписантів (захист від вкраденого ключа CI)
+Один ключ у секретах CI це єдина точка відмови. Тому образ можна вважати підтвердженим, лише якщо **N різних ключів** зробили запис про його digest:
+```bash
+# CI-ключ записує автоматично; людина-затверджувач записує зі свого ключа (ноутбук, окремий пристрій):
+SOLANA_SECRET_KEY="$(cat approver.json)" node scripts/anchor.mjs --image ghcr.io/me/app --digest sha256:… --commit <sha>
+# перед деплоєм:
+oath verify --signer <ciKey>,<approverKey> --quorum 2 --image ghcr.io/me/app:latest      # webhook: OATH_QUORUM=2
+```
+Той, хто вкрав ключ CI, може записати фальшивий digest, але другий запис від затверджувача зробити не може, і кворум не набирається. Перевірено на живому devnet: digest із двома записами проходить (`quorum 2/2`), digest лише з записом CI не проходить.
+
+**Про апаратні ключі чесно.** Кворум захищає, якщо ключ затверджувача зберігається окремо від CI, але підписувати апаратним ключем *всередині CI* неможливо (там нема пристрою), а підпис Ledger/гаманцем у цей інструмент **не реалізований і не тестувався**: `anchor.mjs` підписує ключем із файлу. Тобто апаратне зберігання ключа затверджувача лишається справою оператора; ми гарантуємо лише, що без другого незалежного запису деплой не пройде.
+
+## Мейннет
+Усе працює однаково: `--network mainnet` (CLI), `OATH_NETWORK=mainnet` (webhook), `?net=mainnet` або випадайка (сторінка), для запису в CI вхід `rpc` action'у (або змінна репозиторію `SOLANA_RPC`). Запис коштує приблизно 0,000005 SOL комісії. Сторінка-верифікатор для мейннету ходить у `solana-rpc.publicnode.com`, бо `api.mainnet-beta.solana.com` повертає 403 на всі браузерні запити (заголовок `Origin`); CLI й webhook це не зачіпає. Публічний RPC `api.mainnet-beta.solana.com` має ліміти, для продакшену візьми власний (Helius, QuickNode тощо) і передай через `--rpc` / `SOLANA_RPC`.
+
+## Ключі: ротація, відкликання, строк дії
+- `--signer a,b` / `OATH_SIGNER=a,b` приймає кілька ключів (достатньо запису від будь-якого, якщо не задано `--quorum`). **Ротація:** додай новий ключ → переключи CI → через потрібний час прибери старий.
+- **Відкликання:** прибери скомпрометований ключ зі списку; усі його записи перестають діяти одразу (це політика перевірки, а не дані в блокчейні).
+- `--max-age <днів>`: старі записи не приймаються, тож вкрадений давній digest не живе вічно.
+- Запис привʼязаний до імені образу: digest, зафіксований для `ghcr.io/me/other`, не підтвердить `ghcr.io/me/app` (вимикається `--no-bind`).
+- Перевірка гортає історію підписанта (до `--limit` транзакцій, 1000 за замовчуванням), а не лише останні 100.
+
+## Сканування вразливостей (необовʼязково)
+Oath доводить походження, а не безпеку. Щоб не підписувати вразливі образи, встанови змінну репозиторію `OATH_SCAN=true`: тоді Trivy перед записом перевіряє образ на виправні CRITICAL, а при знахідках запис у Solana не створюється, і крок `deploy` не пройде.
+
+## Сценарій демо (3 хвилини)
+1. **Проблема** (20 с): «Як довести, що в проді те, що зібрав пайплайн?»
+2. **Нормальний деплой** (40 с): push → збірка → запис у Solana (показати транзакцію в Explorer) → `oath verify` дає VERIFIED → деплой іде.
+3. **Атака** (60 с): вручну збираєш інший образ і пушиш у той самий тег в обхід CI. Запускаєш workflow вручну (Run workflow) для кроку deploy або локально `docker pull` + `oath verify`: **NOT VERIFIED, exit 1, деплой зупинено.**
+4. **Чому блокчейн** (30 с): запис не перепише ані CI-адмін, ані зловмисник із доступом до реєстру.
+5. **Далі** (30 с): Kubernetes admission controller, мейннет, ротація й апаратні ключі.
+
+Для кроку 3: запуск workflow вручну (`workflow_dispatch`) перезбирає образ і створює новий запис, тож для чистої демонстрації атаки роби її локально: `docker build` + `docker push` у тег `:latest`, а потім `oath verify --image …:latest`.
+
+## Обмеження (скажи сам, перш ніж запитають)
+- **Ключ CI.** Хто вкраде `SOLANA_SECRET_KEY`, може записати фальшивий digest. Кворум із незалежним ключем затверджувача це закриває, але потребує людини в процесі й окремо збереженого ключа; без кворуму лишаються лише пом'якшення (ротація, відкликання, `--max-age`, привʼязка до образу). Апаратні ключі й підпис Ledger у цей інструмент **не реалізовані**.
+- **Чесність збірки.** Запис у Solana доводить лише «підписант зафіксував digest». Атестацію походження збірки (SLSA через Sigstore) перевіряє `--attest`; вона доводить, що digest зібрав саме workflow вказаного репозиторію, але не що сам код безпечний (для вразливостей є необов'язковий Trivy-гейт).
+- **Мережа.** За замовчуванням devnet (безкоштовно, але без гарантій зберігання). Мейннет підтримується; для CI є ручний workflow `anchor-mainnet` (секрет `SOLANA_SECRET_KEY_MAINNET`, потрібні копійки SOL). На живому мейннеті ми CI ще не проганяли.
+- **Реєстр і RPC як залежності.** Webhook fail-closed, тож при недоступності RPC чи реєстру нові Pod не створюються (працюючі не чіпаємо). Для продакшену потрібен надійний RPC.
+- **Pod-и, створені до встановлення webhook,** не перевіряються; перевіряються лише нові (CREATE). Для наявних скористайся `oath audit`.
+- Аналог без блокчейну: Sigstore/Rekor. Наша відмінність: публічний журнал, що не залежить від одного оператора.
+
+## Тести
+```bash
+npm test                      # юніт-тести (мок Solana RPC, кворум, атестації, admission-логіка, audit)
+OATH_SIGNER=… OK_IMAGE=alpine:3.20 BAD_IMAGE=nginx:alpine test/e2e-kind.sh   # потрібні docker, kind, kubectl
+```
