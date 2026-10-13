@@ -26,12 +26,11 @@ deploy ──► docker pull ──► oath verify ──► ✔ exit 0  → dep
 
 ## Set up in 3 steps
 
-**1. A CI key** (once):
+**1. A CI key** (once, about a minute):
 ```bash
-npm install
-node scripts/keygen.mjs      # prints a public + secret key and tries a devnet airdrop
+npx --yes --allow-git=all github:Tymofii-thc/oath init      # or: node bin/oath.mjs init  in a clone
 ```
-Add to your repository: the secret `SOLANA_SECRET_KEY` (the secret key) and the variable `OATH_SIGNER` (the public key). Devnet SOL: https://faucet.solana.com
+`oath init` creates a key in `.oath/ci-key.json` (the secret is never printed and `.oath/` goes into `.gitignore`), asks the devnet faucet for SOL, and if the public faucet refuses (it often does) it prints the link and **waits until you've funded the key**. It then prints exactly what to add to your repository: the secret `SOLANA_SECRET_KEY`, the variable `OATH_SIGNER`, and the two workflow steps below. With the GitHub CLI installed and logged in, `oath init --set-github` sets the secret and variable for you.
 
 **2. Record after the build** (in your workflow):
 ```yaml
@@ -42,14 +41,16 @@ Add to your repository: the secret `SOLANA_SECRET_KEY` (the secret key) and the 
     secret-key: ${{ secrets.SOLANA_SECRET_KEY }}
 ```
 
-**3. Verify before deploy:**
+**3. Verify before deploy** (no npx, no flags):
 ```yaml
-- run: docker pull ghcr.io/${{ github.repository }}:latest
-- run: npx --yes --allow-git=all github:Tymofii-thc/oath verify --signer "${{ vars.OATH_SIGNER }}" --image ghcr.io/${{ github.repository }}:latest
+- uses: Tymofii-thc/oath/verify@main
+  with:
+    signer: ${{ vars.OATH_SIGNER }}
+    image: ghcr.io/${{ github.repository }}:latest
 ```
-`--allow-git=all` is needed on npm 12+, which blocks git dependencies by default (`EALLOWGIT`); on older npm the flag changes nothing. Without npx: check out this repository and run `node bin/oath.mjs verify …`.
+The action pulls the image and fails the job (exit 1) if the digest has no record. Optional inputs: `network`, `rpc`, `quorum`, `max-age`, `attest` (see below), or `digest` instead of `image`.
 
-This repository dogfoods the same flow: see `.github/workflows/deploy.yml`.
+This repository dogfoods the same flow: see `.github/workflows/deploy.yml`. Step-by-step testing guide: [TESTING.md](TESTING.md).
 
 ## CLI
 ```bash
@@ -74,7 +75,7 @@ kubectl run t --image=nginx        # → denied: no pipeline build anchored by t
 - **Fails closed:** an unreachable registry, RPC or the webhook itself means the Pod is rejected (`failurePolicy: Fail`). Exempt: `kube-system`, `kube-public`, `kube-node-lease` and `oath-system`, so the cluster can't lock itself out.
 - `OATH_MODE=audit` allows everything but returns warnings: useful for a first rollout.
 - `OATH_FAILURE_POLICY=Ignore deploy/install.sh` sets `failurePolicy: Ignore` (availability over enforcement; combine with `oath audit`). The webhook runs 2 replicas with a PodDisruptionBudget.
-- Private registries: `OATH_REGISTRY_AUTH='{"ghcr.io":{"username":"u","password":"token"}}'` (this path is not covered by our tests yet).
+- Private registries: `OATH_REGISTRY_AUTH='{"ghcr.io":{"username":"u","password":"token"}}'` (tested against a password-protected registry and a mock token registry; note that the kubelet still needs its own `imagePullSecrets` to pull the image).
 - Tested in a real cluster (kind): `test/e2e-kind.sh` covers admit, tag pinning, deny, Deployment pods blocked, and fail-closed with the webhook down.
 
 ## Pods that are already running

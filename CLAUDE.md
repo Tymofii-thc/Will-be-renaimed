@@ -9,10 +9,10 @@
 Це для хакатону Colosseum (Crypto World's Fair), дедлайн у вівторок 2026-10-13 близько 9:00 за варшавським часом (точну годину перевірити на формі сабміту). Користувач хоче не «іграшку», а реальний інструмент: підключається за кілька рядків і сам блокує деплой. Azure не використовуємо (дорого): GitHub Actions + GHCR + GitHub Pages.
 
 ## Структура
-- `bin/oath.mjs`: CLI `oath verify|audit` (`--signer a,b`, `--network`, `--rpc`, `--max-age`, `--quorum`, `--attest owner/repo`, `--no-bind`). Коди виходу: 0 перевірено, 1 не перевірено, 2 помилка.
+- `bin/oath.mjs`: CLI `oath init|verify|audit` (`--signer a,b`, `--network`, `--rpc`, `--max-age`, `--quorum`, `--attest owner/repo`, `--no-bind`). Коди виходу: 0 перевірено, 1 не перевірено, 2 помилка.
 - `lib/`: `oath.mjs` (пошук запису, кворум, пагінація), `registry.mjs` (тег → digest), `admission.mjs` (логіка webhook), `attest.mjs` (Sigstore/SLSA), `audit.mjs` (`oath audit`).
 - `bin/oath-webhook.mjs` + `deploy/` (`install.sh`, `k8s/oath.yaml`): Kubernetes mutating admission webhook (pin тегу в digest, fail closed).
-- `scripts/anchor.mjs` пише запис у Solana (Memo), `scripts/keygen.mjs` генерує ключ, `action.yml` композитний GitHub Action.
+- `scripts/anchor.mjs` пише запис у Solana (Memo), `scripts/keygen.mjs` генерує ключ, `action.yml` композитний GitHub Action (запис), `verify/action.yml` (перевірка перед деплоєм).
 - `.github/workflows/`: `deploy.yml` (build → attest → anchor → deploy, Trivy за `OATH_SCAN`), `release-webhook.yml`, `pages.yml`, `anchor-mainnet.yml` (ручний).
 - `verifier/`: статичний сайт (index.html, style.css, app.js, assets/), деплоїться на GitHub Pages: https://tymofii-thc.github.io/oath/
 - `test/`: юніт-тести (`npm test`) і `e2e-kind.sh`. `demo/demo.sh`: сценарій демо. `app/`: демо-сервіс.
@@ -27,7 +27,7 @@
 ## Що НЕ перевірено / не зроблено
 - Мейннет у CI (код підтримує; ручний workflow `anchor-mainnet`, потрібен баланс SOL).
 - Підпис Ledger/апаратним гаманцем (не реалізовано).
-- Приватні реєстри в webhook (`OATH_REGISTRY_AUTH`), `--attest` для приватних репозиторіїв.
+- `--attest` для приватних репозиторіїв (приватні реєстри в webhook перевірено: реєстр із паролем + мок Bearer).
 - Сайт у справжньому Chrome/Safari і на телефоні.
 
 ## Далі

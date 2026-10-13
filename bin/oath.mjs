@@ -4,6 +4,7 @@
 //   oath verify --signer <pubkey[,pubkey…]> --digest sha256:<hex>
 //   oath verify --signer <pubkey> --image ghcr.io/me/app:latest      (digest read from local docker)
 //   oath verify --signer <pubkey> --container prod                   (digest of the RUNNING image)
+//   oath init   [--out .oath/ci-key.json] [--no-wait] [--set-github]      (create a CI key, fund it on devnet, print the next steps)
 //   oath audit  --signer <pubkey> [--file pods.json] [--skip-namespaces a,b]   (every Pod running in the current kube context)
 //
 // Options: --network devnet|mainnet | --rpc <url>   --max-age <days>   --limit <txs per signer, default 1000>
@@ -15,7 +16,8 @@
 // Exit codes: 0 = verified, 1 = NOT verified, 2 = usage / network error.
 // Put it right before your deploy step: if it exits non-zero, the deploy stops.
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync, mkdirSync, appendFileSync } from "node:fs";
+import { dirname } from "node:path";
 import { extractDigest, findRecord, repoName, resolveRpc } from "../lib/oath.mjs";
 import { collectImages } from "../lib/audit.mjs";
 import { verifyAttestation } from "../lib/attest.mjs";
@@ -167,12 +169,99 @@ async function audit() {
   process.exit(bad ? 1 : 0);
 }
 
+// One-command setup: a CI key in a file (the secret is never printed), a funded devnet balance, and the exact next steps.
+async function init() {
+  const out = arg("out") || ".oath/ci-key.json";
+  const network = arg("network") || "devnet";
+  let web3;
+  try { web3 = await import("@solana/web3.js"); } catch { fail(2, "oath init needs @solana/web3.js: run `npm install` in this repository first."); }
+  const { Keypair, Connection, LAMPORTS_PER_SOL } = web3;
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+  let kp;
+  if (existsSync(out)) {
+    kp = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(readFileSync(out, "utf8"))));
+    console.log(`Using the existing key in ${out}`);
+  } else {
+    kp = Keypair.generate();
+    mkdirSync(dirname(out), { recursive: true });
+    writeFileSync(out, JSON.stringify(Array.from(kp.secretKey)), { mode: 0o600 });
+    console.log(`Created a CI key in ${out} (permissions 600; keep it out of git and chat)`);
+    try { // keep the key out of git
+      const gi = ".gitignore";
+      const entry = dirname(out).split("/")[0] + "/";
+      const cur = existsSync(gi) ? readFileSync(gi, "utf8") : "";
+      if (!cur.split("\n").includes(entry)) appendFileSync(gi, (cur && !cur.endsWith("\n") ? "\n" : "") + entry + "\n");
+    } catch { /* not fatal */ }
+  }
+  const pub = kp.publicKey.toBase58();
+  console.log(`\nPublic key (this is OATH_SIGNER, safe to share):\n  ${pub}\n`);
+
+  const rpcUrl = resolveRpc({ rpc: arg("rpc"), network });
+  const conn = new Connection(rpcUrl, { commitment: "confirmed", disableRetryOnRateLimit: true }); // fail fast: the public faucet is often rate-limited
+  const bal = async () => { try { return (await conn.getBalance(kp.publicKey)) / LAMPORTS_PER_SOL; } catch { return 0; } };
+  let funded = (await bal()) >= 0.001;
+
+  if (!funded && network === "devnet") {
+    for (const sol of [1, 0.5, 0.1]) {
+      try {
+        const sig = await conn.requestAirdrop(kp.publicKey, sol * LAMPORTS_PER_SOL);
+        await conn.confirmTransaction(sig, "confirmed");
+        console.log(`Devnet airdrop: ${sol} SOL received.`);
+        funded = true;
+        break;
+      } catch { /* the public faucet is often rate-limited */ }
+    }
+  }
+  if (!funded) {
+    const faucet = network === "devnet" ? "https://faucet.solana.com (choose devnet, paste the public key above)" : "any wallet or exchange (mainnet needs real SOL, about 0.01 is plenty)";
+    console.log(`The key has no SOL yet. Fund it via ${faucet}.`);
+    if (!flag("no-wait")) {
+      console.log("Waiting for the balance (Ctrl+C to skip; run this command again later to continue)…");
+      for (let i = 0; i < 120 && !funded; i++) { await sleep(5000); funded = (await bal()) >= 0.001; }
+      console.log(funded ? "Funds received." : "Still no balance. Fund the key, then run `oath init` again.");
+    }
+  }
+
+  console.log("\nNext steps");
+  console.log("  1. Add two things to your GitHub repository:");
+  console.log(`       secret    SOLANA_SECRET_KEY  = the contents of ${out}`);
+  console.log(`       variable  OATH_SIGNER        = ${pub}`);
+  let ghDone = false;
+  if (flag("set-github")) {
+    try {
+      execFileSync("gh", ["secret", "set", "SOLANA_SECRET_KEY"], { input: readFileSync(out), stdio: ["pipe", "inherit", "inherit"] });
+      execFileSync("gh", ["variable", "set", "OATH_SIGNER", "--body", pub], { stdio: "inherit" });
+      ghDone = true;
+      console.log("     (done through the GitHub CLI)");
+    } catch { console.log("     (gh failed or is not logged in; set them by hand)"); }
+  }
+  if (!ghDone) {
+    console.log(`       with the GitHub CLI:  gh secret set SOLANA_SECRET_KEY < ${out}   &&   gh variable set OATH_SIGNER --body ${pub}`);
+    console.log("       or in the browser:    Settings → Secrets and variables → Actions");
+  }
+  console.log("  2. Record each build, after your image build step:");
+  console.log("       - uses: Tymofii-thc/oath@main");
+  console.log("         with:");
+  console.log("           image: ghcr.io/${{ github.repository }}");
+  console.log("           digest: ${{ steps.build.outputs.digest }}");
+  console.log("           secret-key: ${{ secrets.SOLANA_SECRET_KEY }}");
+  console.log("  3. Verify before deploy:");
+  console.log("       - uses: Tymofii-thc/oath/verify@main");
+  console.log("         with:");
+  console.log("           signer: ${{ vars.OATH_SIGNER }}");
+  console.log("           image: ghcr.io/${{ github.repository }}:latest");
+  process.exit(funded ? 0 : 1);
+}
+
 const cmd = process.argv[2];
 if (cmd === "verify") {
   await verify();
 } else if (cmd === "audit") {
   await audit();
+} else if (cmd === "init") {
+  await init();
 } else {
-  console.error("Usage: oath audit --signer <pubkey[,pubkey]> [--file pods.json|-] [--skip-namespaces a,b] [--network …]\n       oath verify --signer <pubkey[,pubkey]> (--digest sha256:… | --image <ref> | --container <name>) [--network devnet|mainnet | --rpc <url>] [--max-age <days>] [--quorum <N>] [--attest <owner/repo>] [--no-bind]");
+  console.error("Usage: oath init [--out .oath/ci-key.json] [--no-wait] [--set-github]\n       oath audit --signer <pubkey[,pubkey]> [--file pods.json|-] [--skip-namespaces a,b] [--network …]\n       oath verify --signer <pubkey[,pubkey]> (--digest sha256:… | --image <ref> | --container <name>) [--network devnet|mainnet | --rpc <url>] [--max-age <days>] [--quorum <N>] [--attest <owner/repo>] [--no-bind]");
   process.exit(2);
 }

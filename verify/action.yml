@@ -1,0 +1,76 @@
+name: Oath - verify image before deploy
+description: Fails the job (exit 1) unless the image about to be deployed was recorded on Solana by your CI signer.
+author: oath
+
+inputs:
+  signer:
+    description: Public key of the CI signer (comma-separated to accept several, e.g. during key rotation)
+    required: true
+  image:
+    description: Image reference to verify, e.g. ghcr.io/owner/app:latest (pulled first unless pull is false)
+    required: false
+  digest:
+    description: Alternative to image - a sha256 digest to verify
+    required: false
+  pull:
+    description: Pull the image before checking it
+    required: false
+    default: 'true'
+  network:
+    description: devnet or mainnet
+    required: false
+    default: devnet
+  rpc:
+    description: Solana RPC URL (overrides network)
+    required: false
+  quorum:
+    description: Number of distinct signers that must have recorded the digest
+    required: false
+    default: '1'
+  max-age:
+    description: Reject records older than this many days
+    required: false
+  attest:
+    description: owner/repo whose GitHub Actions must have signed a Sigstore build attestation for the image
+    required: false
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 22
+
+    - name: Install attestation dependency
+      if: inputs.attest != ''
+      shell: bash
+      run: npm ci --omit=dev --omit=optional --prefix "${{ github.action_path }}/.."
+
+    - name: Pull image
+      if: inputs.image != '' && inputs.pull == 'true'
+      shell: bash
+      env:
+        IMAGE: ${{ inputs.image }}
+      run: docker pull "$IMAGE"
+
+    - name: Verify
+      shell: bash
+      env:
+        SIGNER: ${{ inputs.signer }}
+        IMAGE: ${{ inputs.image }}
+        DIGEST: ${{ inputs.digest }}
+        NETWORK: ${{ inputs.network }}
+        RPC: ${{ inputs.rpc }}
+        QUORUM: ${{ inputs.quorum }}
+        MAX_AGE: ${{ inputs.max-age }}
+        ATTEST: ${{ inputs.attest }}
+        ACTION_PATH: ${{ github.action_path }}
+        GITHUB_TOKEN: ${{ github.token }}
+      run: |
+        args=(verify --signer "$SIGNER" --quorum "$QUORUM")
+        [ -n "$IMAGE" ]  && args+=(--image "$IMAGE")
+        [ -n "$DIGEST" ] && args+=(--digest "$DIGEST")
+        if [ -n "$RPC" ]; then args+=(--rpc "$RPC"); else args+=(--network "$NETWORK"); fi
+        [ -n "$MAX_AGE" ] && args+=(--max-age "$MAX_AGE")
+        [ -n "$ATTEST" ]  && args+=(--attest "$ATTEST")
+        node "$ACTION_PATH/../bin/oath.mjs" "${args[@]}"

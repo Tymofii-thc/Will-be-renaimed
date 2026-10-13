@@ -24,12 +24,11 @@ deploy ──► docker pull ──► oath verify ──► ✔ exit 0  → д�
 
 ## Підключення за 3 кроки
 
-**1. Ключ CI** (один раз):
+**1. Ключ CI** (один раз, приблизно хвилина):
 ```bash
-npm install
-node scripts/keygen.mjs      # друкує public + secret key і пробує devnet airdrop
+npx --yes --allow-git=all github:Tymofii-thc/oath init      # або: node bin/oath.mjs init  у клоні
 ```
-Додай у репозиторій: секрет `SOLANA_SECRET_KEY` (secret key), змінну `OATH_SIGNER` (public key). SOL для devnet: https://faucet.solana.com
+`oath init` створює ключ у `.oath/ci-key.json` (секрет не друкується, а `.oath/` потрапляє в `.gitignore`), просить у devnet-faucet SOL, а якщо публічний faucet відмовив (так буває часто), друкує посилання і **чекає, поки ти поповниш ключ**. Потім друкує, що саме додати в репозиторій: секрет `SOLANA_SECRET_KEY`, змінну `OATH_SIGNER` і два кроки workflow нижче. Якщо встановлено GitHub CLI і ти залогінений, `oath init --set-github` додасть секрет і змінну сам.
 
 **2. Запис після збірки** (у вашому workflow):
 ```yaml
@@ -40,14 +39,16 @@ node scripts/keygen.mjs      # друкує public + secret key і пробує 
     secret-key: ${{ secrets.SOLANA_SECRET_KEY }}
 ```
 
-**3. Перевірка перед деплоєм:**
+**3. Перевірка перед деплоєм** (без npx і прапорців):
 ```yaml
-- run: docker pull ghcr.io/${{ github.repository }}:latest
-- run: npx --yes --allow-git=all github:Tymofii-thc/oath verify --signer "${{ vars.OATH_SIGNER }}" --image ghcr.io/${{ github.repository }}:latest
+- uses: Tymofii-thc/oath/verify@main
+  with:
+    signer: ${{ vars.OATH_SIGNER }}
+    image: ghcr.io/${{ github.repository }}:latest
 ```
-`--allow-git=all` потрібен для npm 12+, який за замовчуванням блокує пакети з git (`EALLOWGIT`); на старіших npm прапорець нічого не змінює. Альтернатива без npx: `actions/checkout` цього репозиторію і `node bin/oath.mjs verify …` (залежностей нема).
+Action сам тягне образ і валить job (код 1), якщо для digest нема запису. Необов'язкові входи: `network`, `rpc`, `quorum`, `max-age`, `attest`, або `digest` замість `image`.
 
-Цей репозиторій уже використовує сам себе так: див. `.github/workflows/deploy.yml`.
+Цей репозиторій використовує сам себе так: див. `.github/workflows/deploy.yml`. Покроковий гайд для тестування: [TESTING.md](TESTING.md).
 
 ## CLI
 ```bash
@@ -71,7 +72,7 @@ kubectl run t --image=nginx        # → denied: no pipeline build anchored by t
 - **Fail closed:** недоступний реєстр, RPC чи сам webhook = Pod не проходить (`failurePolicy: Fail`). Виняток: `kube-system`, `kube-public`, `kube-node-lease` і namespace `oath-system` (щоб не заблокувати кластер).
 - `OATH_MODE=audit` дозволяє все, але повертає попередження: зручно для першого впровадження.
 - `OATH_FAILURE_POLICY=Ignore deploy/install.sh` міняє `failurePolicy` на `Ignore` (доступність важливіша за блокування; тоді користуйся `oath audit`). Webhook працює у 2 репліках із PodDisruptionBudget.
-- Приватні реєстри: `OATH_REGISTRY_AUTH='{"ghcr.io":{"username":"u","password":"token"}}'`.
+- Приватні реєстри: `OATH_REGISTRY_AUTH='{"ghcr.io":{"username":"u","password":"token"}}'` (перевірено на реєстрі з паролем і на моку з Bearer-токеном; кубелет усе одно потребує власних `imagePullSecrets`).
 - Перевірено в реальному кластері (kind): `test/e2e-kind.sh` (допуск, pin, відмова, блокування Deployment, fail-closed при вимкненому webhook).
 
 ## Pod-и, що вже працюють

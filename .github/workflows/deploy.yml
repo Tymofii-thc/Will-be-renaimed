@@ -77,13 +77,16 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Pull the image exactly as prod would
-        run: docker pull "${IMAGE}:latest"
-
-      # The gate: if the image in the registry is not one the pipeline anchored
-      # (e.g. someone pushed to :latest by hand), this exits 1 and the deploy stops.
-      - name: Verify image against Solana
-        run: node bin/oath.mjs verify --signer "${{ vars.OATH_SIGNER }}" --image "${IMAGE}:latest" ${{ vars.SOLANA_RPC && format('--rpc {0}', vars.SOLANA_RPC) || '' }}
+      # The gate, as a reusable action: pulls the image exactly as prod would, then checks it against Solana
+      # and against the Sigstore build attestation. If the image in the registry is not one the pipeline built
+      # (e.g. someone pushed to :latest by hand), this fails and the deploy stops.
+      - name: Verify image against Solana and the build attestation
+        uses: ./verify
+        with:
+          signer: ${{ vars.OATH_SIGNER }}
+          image: ${{ env.IMAGE }}:latest
+          rpc: ${{ vars.SOLANA_RPC }}
+          attest: ${{ github.repository }}
 
       - name: Deploy
         run: echo "Image verified. Replace this step with your real deploy (kubectl / ssh / compose)."
