@@ -5,6 +5,7 @@
 //   oath verify --signer <pubkey> --image ghcr.io/me/app:latest      (digest read from local docker)
 //   oath verify --signer <pubkey> --container prod                   (digest of the RUNNING image)
 //   oath init   [--out .oath/ci-key.json] [--no-wait] [--set-github]      (create a CI key, fund it on devnet, print the next steps)
+//   oath revoke --digest sha256:<hex> --reason "<text>"   (SOLANA_SECRET_KEY or --key-file; a revoked digest never verifies again)
 //   oath audit  --signer <pubkey> [--file pods.json] [--skip-namespaces a,b]   (every Pod running in the current kube context)
 //
 // Options: --network devnet|mainnet | --rpc <url>   --max-age <days>   --limit <txs per signer, default 1000>
@@ -18,7 +19,8 @@
 import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync, existsSync, mkdirSync, appendFileSync } from "node:fs";
 import { dirname } from "node:path";
-import { extractDigest, findRecord, repoName, resolveRpc } from "../lib/oath.mjs";
+import { extractDigest, checkRecord, repoName, resolveRpc } from "../lib/oath.mjs";
+import { sendMemo } from "../lib/memo.mjs";
 import { collectImages } from "../lib/audit.mjs";
 import { verifyAttestation } from "../lib/attest.mjs";
 
@@ -84,9 +86,9 @@ async function verify() {
   const maxAgeDays = arg("max-age");
   const quorum = Number(arg("quorum") || process.env.OATH_QUORUM || 1);
   const attestRepo = arg("attest") || process.env.OATH_ATTEST_REPO;
-  let rec;
+  let check;
   try {
-    rec = await findRecord({
+    check = await checkRecord({
       signers,
       digest: want,
       rpcUrl,
@@ -98,6 +100,14 @@ async function verify() {
   } catch (e) {
     fail(2, `RPC lookup failed: ${e.message}`);
   }
+
+  if (check.status === "revoked") {
+    console.error(`REVOKED  ${want}`);
+    console.error(`  Revoked by ${check.signer}${check.reason ? `: ${check.reason}` : ""}`);
+    console.error("  Refusing to proceed: a trusted key marked this digest as bad.");
+    process.exit(1);
+  }
+  const rec = check.status === "verified" ? check.rec : null;
 
   if (rec) {
     let att = null;
@@ -156,17 +166,39 @@ async function audit() {
     const key = `${im.repo}@${im.digest}`;
     if (!cache.has(key)) {
       try {
-        cache.set(key, await findRecord({ signers, digest: im.digest, rpcUrl, limit: Number(arg("limit") || 1000), image: flag("no-bind") ? undefined : im.repo, maxAgeSeconds: maxAgeDays ? Number(maxAgeDays) * 86400 : undefined }));
+        cache.set(key, await checkRecord({ signers, digest: im.digest, rpcUrl, limit: Number(arg("limit") || 1000), image: flag("no-bind") ? undefined : im.repo, maxAgeSeconds: maxAgeDays ? Number(maxAgeDays) * 86400 : undefined, quorum: Number(arg("quorum") || process.env.OATH_QUORUM || 1) }));
       } catch (e) {
         fail(2, `RPC lookup failed: ${e.message}`);
       }
     }
-    const rec = cache.get(key);
-    if (rec) console.log(`VERIFIED     ${im.where}  ${im.image}  commit ${rec.commit}`);
+    const chk = cache.get(key);
+    if (chk.status === "verified") console.log(`VERIFIED     ${im.where}  ${im.image}  commit ${chk.rec.commit}`);
+    else if (chk.status === "revoked") { bad++; console.log(`REVOKED      ${im.where}  ${im.image}  ${im.digest}  (${chk.reason || "no reason given"})`); }
     else { bad++; console.log(`NOT VERIFIED ${im.where}  ${im.image}  ${im.digest}`); }
   }
   console.log(`\n${images.length} containers checked, ${bad} not verified.`);
   process.exit(bad ? 1 : 0);
+}
+
+// Marks a digest as bad. Any trusted signer can do it; it takes effect for every later check.
+async function revoke() {
+  const digest = extractDigest(arg("digest"));
+  if (!digest) fail(2, "Missing --digest sha256:<64 hex>.");
+  const reason = String(arg("reason") || "").replace(/[|\r\n]+/g, " ").trim().slice(0, 100);
+  let secret = process.env.SOLANA_SECRET_KEY;
+  if (arg("key-file")) { try { secret = readFileSync(arg("key-file"), "utf8"); } catch (e) { fail(2, `cannot read key file: ${e.message}`); } }
+  if (!secret) fail(2, "Provide the signer's secret key: SOLANA_SECRET_KEY='[…]' or --key-file <path>.");
+  let rpcUrl;
+  try { rpcUrl = resolveRpc({ rpc: arg("rpc"), network: arg("network") }); } catch (e) { fail(2, e.message); }
+  const text = `pod1r|${digest}|${reason}|${new Date().toISOString()}`;
+  try {
+    const out = await sendMemo({ text, secretKey: JSON.parse(secret), rpcUrl });
+    console.log(`Revoked: ${text}`);
+    console.log(`Signer : ${out.signer}`);
+    console.log(`Tx     : ${out.signature}`);
+  } catch (e) {
+    fail(2, `could not send the revocation: ${e.message}`);
+  }
 }
 
 // One-command setup: a CI key in a file (the secret is never printed), a funded devnet balance, and the exact next steps.
@@ -261,7 +293,9 @@ if (cmd === "verify") {
   await audit();
 } else if (cmd === "init") {
   await init();
+} else if (cmd === "revoke") {
+  await revoke();
 } else {
-  console.error("Usage: oath init [--out .oath/ci-key.json] [--no-wait] [--set-github]\n       oath audit --signer <pubkey[,pubkey]> [--file pods.json|-] [--skip-namespaces a,b] [--network …]\n       oath verify --signer <pubkey[,pubkey]> (--digest sha256:… | --image <ref> | --container <name>) [--network devnet|mainnet | --rpc <url>] [--max-age <days>] [--quorum <N>] [--attest <owner/repo>] [--no-bind]");
+  console.error("Usage: oath revoke --digest sha256:… --reason <text> [--key-file <path>] [--network …]\n       oath init [--out .oath/ci-key.json] [--no-wait] [--set-github]\n       oath audit --signer <pubkey[,pubkey]> [--file pods.json|-] [--skip-namespaces a,b] [--network …]\n       oath verify --signer <pubkey[,pubkey]> (--digest sha256:… | --image <ref> | --container <name>) [--network devnet|mainnet | --rpc <url>] [--max-age <days>] [--quorum <N>] [--attest <owner/repo>] [--no-bind]");
   process.exit(2);
 }

@@ -110,3 +110,44 @@ test("quorum: needs N distinct signers; one signer repeating does not count twic
     assert.ok(await findRecord({ signers: ["A", "A"], digest: D1, rpcUrl: m.url, quorum: 1 }));
   } finally { m.close(); }
 });
+
+// ---- revocation and RPC failover
+const rev = (digest, reason = "stolen build") => `[${60}] pod1r|${digest}|${reason}|2026-01-02T00:00:00.000Z`;
+const { checkRecord, parseRevocation } = await import("../lib/oath.mjs");
+
+test("parseRevocation reads revocation memos and ignores records", () => {
+  assert.deepEqual(parseRevocation(rev(D1, "why")).map((r) => [r.digest, r.reason]), [[D1, "why"]]);
+  assert.deepEqual(parseRevocation(memo("a/b", D1)), []);
+});
+
+test("revocation by the same signer wins, even if the digest was (re)anchored later", async () => {
+  const m = await mockRpc({ S: [tx(1, memo("a/b", D1)), tx(2, rev(D1)), tx(3, memo("a/b", D1))] }); // newest first: re-anchored after the revocation
+  try {
+    const r = await checkRecord({ signers: ["S"], digest: D1, rpcUrl: m.url });
+    assert.equal(r.status, "revoked");
+    assert.equal(r.reason, "stolen build");
+    assert.equal(await findRecord({ signers: ["S"], digest: D1, rpcUrl: m.url }), null, "findRecord must not return a revoked record");
+  } finally { m.close(); }
+});
+
+test("revocation by another TRUSTED signer wins; by an untrusted one is ignored", async () => {
+  const m = await mockRpc({ CI: [tx(3, memo("a/b", D1))], APPROVER: [tx(1, rev(D1, "bad"))], STRANGER: [tx(2, rev(D1, "troll"))] });
+  try {
+    assert.equal((await checkRecord({ signers: ["CI", "APPROVER"], digest: D1, rpcUrl: m.url })).status, "revoked");
+    assert.equal((await checkRecord({ signers: ["CI"], digest: D1, rpcUrl: m.url })).status, "verified", "a stranger's revocation is not trusted");
+  } finally { m.close(); }
+});
+
+test("revoking one digest does not affect another", async () => {
+  const m = await mockRpc({ S: [tx(1, rev(D2)), tx(2, memo("a/b", D1))] });
+  try { assert.equal((await checkRecord({ signers: ["S"], digest: D1, rpcUrl: m.url })).status, "verified"); } finally { m.close(); }
+});
+
+test("RPC failover: a dead first endpoint does not stop verification", async () => {
+  const m = await mockRpc({ S: [tx(1, memo("a/b", D1))] });
+  try {
+    const r = await findRecord({ signers: ["S"], digest: D1, rpcUrl: `http://127.0.0.1:1, ${m.url}` });
+    assert.ok(r);
+    await assert.rejects(() => findRecord({ signers: ["S"], digest: D1, rpcUrl: "http://127.0.0.1:1,http://127.0.0.1:2" }), "all endpoints dead still throws (fail closed)");
+  } finally { m.close(); }
+});

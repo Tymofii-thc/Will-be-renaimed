@@ -102,3 +102,34 @@ test("quorum is passed to the lookup", async () => {
   assert.equal(got, 2);
   assert.match(r.response.status.message, /2 of the trusted signer/);
 });
+
+test("RPC outage: a digest verified recently is still admitted (stale cache); an unknown one is denied", async () => {
+  let down = false;
+  const h = makeHandler({ signers: ["S"], rpcUrl: "x", cacheMs: 1, staleMs: 60000,
+    deps: { ...deps, findRecord: async (o) => { if (down) throw new Error("rpc down"); return anchored.has(o.digest) ? { signature: "s" } : null; } } });
+  assert.equal((await h(pod(["ghcr.io/me/app:v1"]))).response.allowed, true, "verified while the RPC is up");
+  await new Promise((r) => setTimeout(r, 5)); // cache entry expires
+  down = true;
+  assert.equal((await h(pod(["ghcr.io/me/app:v1"]))).response.allowed, true, "served from the recent verification");
+  const unknown = await h(pod(["ghcr.io/me/evil:latest"]));
+  assert.equal(unknown.response.allowed, false, "never seen before: fail closed");
+  assert.match(unknown.response.status.message, /rpc down/);
+});
+
+test("RPC outage with stale cache disabled (staleMs 0) is strictly fail closed", async () => {
+  let down = false;
+  const h = makeHandler({ signers: ["S"], rpcUrl: "x", cacheMs: 1, staleMs: 0,
+    deps: { ...deps, findRecord: async (o) => { if (down) throw new Error("rpc down"); return { signature: "s" }; } } });
+  assert.equal((await h(pod(["ghcr.io/me/app:v1"]))).response.allowed, true);
+  await new Promise((r) => setTimeout(r, 5)); down = true;
+  assert.equal((await h(pod(["ghcr.io/me/app:v1"]))).response.allowed, false);
+});
+
+test("a stale verification expires: after staleMs the pod is denied again", async () => {
+  let down = false;
+  const h = makeHandler({ signers: ["S"], rpcUrl: "x", cacheMs: 1, staleMs: 20,
+    deps: { ...deps, findRecord: async () => { if (down) throw new Error("rpc down"); return { signature: "s" }; } } });
+  await h(pod(["ghcr.io/me/app:v1"]));
+  await new Promise((r) => setTimeout(r, 40)); down = true;
+  assert.equal((await h(pod(["ghcr.io/me/app:v1"]))).response.allowed, false);
+});

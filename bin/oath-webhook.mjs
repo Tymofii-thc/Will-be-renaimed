@@ -4,6 +4,7 @@
 //
 // Env: OATH_SIGNER (comma separated, required)   OATH_NETWORK | SOLANA_RPC   OATH_MAX_AGE_DAYS
 //      OATH_QUORUM=<N> (distinct signers required)   OATH_ATTEST_REPO=<owner/repo> (also require a Sigstore build attestation)
+//      OATH_STALE_OK_HOURS=<h> (default 1; while the RPC is down, admit digests verified within the last h hours; 0 = strict)
 //      OATH_MODE=enforce|audit (default enforce)  OATH_PIN=true|false (default true)
 //      OATH_REGISTRY_AUTH='{"ghcr.io":{"username":"u","password":"token"}}' (private registries)
 //      TLS_CERT, TLS_KEY (default /tls/tls.crt, /tls/tls.key)   PORT (default 8443)   OATH_PLAIN_HTTP=1 (tests only)
@@ -22,6 +23,7 @@ const handler = makeHandler({
   maxAgeSeconds: process.env.OATH_MAX_AGE_DAYS ? Number(process.env.OATH_MAX_AGE_DAYS) * 86400 : undefined,
   quorum: Number(process.env.OATH_QUORUM || 1),
   attestRepo: process.env.OATH_ATTEST_REPO || undefined,
+  staleMs: Number(process.env.OATH_STALE_OK_HOURS ?? 1) * 3600000,
   mode: process.env.OATH_MODE || "enforce",
   pin: process.env.OATH_PIN !== "false",
   auths: process.env.OATH_REGISTRY_AUTH ? JSON.parse(process.env.OATH_REGISTRY_AUTH) : {},
